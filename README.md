@@ -28,13 +28,15 @@ Instruction of installing Apache Spark can be found [here](https://www.santoshsr
 ### GWAS
 By default, the GWAS should have the same format as that of a GWAS file obtained from Psychiatric Genomics Consortium (PGC). 
 
-|     snpid|hg18chr|      bp| a1| a2|    or|    se|  pval| info|ngt|    CEUaf |
-|----------|-------|--------|---|---|------|------|------|-----|---|----------|
-| rs2241028|      2|74612442|  A|  G|0.9991|0.0255|0.9723|0.968|  0| 0.0688073|
-| rs6707302|      2|74614930|  T|  C|0.9762|0.0179|0.1779|0.931|  0|   0.87963|
-|rs13428246|      2|74619088|  T|  C|0.9945|0.2186|0.9799|0.405|  0|0.00458716|
-|  rs715407|      2|74619201|  T|  G| 1.025| 0.018|0.1734|0.947|  0|  0.119266|
-|rs12104595|      2|74621725|  T|  C|0.9777|0.1524|0.8823|0.918|  0|0.00458716|
+|     snpid|   pval|    or| a1| a2|    CEUaf|
+|----------|-------|------|---|---|---------|
+| rs3131972| 0.2032| 1.047|  A|  G|  0.16055|
+| rs3131969|0.08597| 1.067|  A|  G| 0.133028|
+| rs3131967|0.06683| 1.077|  T|  C|        .|
+| rs1048488| 0.2808|0.9617|  T|  C| 0.836449|
+|rs12562034| 0.8489|0.9931|  A|  G|0.0925926|
+
+
 
 You can change your GWAS to the same format, or use optional parameter flags to let the script know about the format you are using. More details below.
 
