@@ -12,20 +12,15 @@ from math import log
 import csv
 import pickle
 import sys
-
-from operator import add
+from collections import Counter
 import re
 import glob, os
-import csv
-from collections import Counter
+
 import ntpath
 import functools
-
-from math import log
 import itertools
 
 from time import time
-import sys
 import argparse
 
 
@@ -204,8 +199,10 @@ def getSampleNames(sampleFileName, sampleDelim, sampleIDCol, skip=0):
             labels.append(column)
     return labels
 
-
-
+def rmDup(checkList):
+    checkCount=Counter([x[0] for x in checkList])
+    nodupMap={snp:flag for snp, flag in checkList if checkCount[snp]==1}
+    return nodupMap
 
 # output each PRS for each sample, in the form of [sample, *scores],
 # and a list of pvalues that are in the order of the scores from each p-value
@@ -214,27 +211,34 @@ def getSampleNames(sampleFileName, sampleDelim, sampleIDCol, skip=0):
 def writePRS(prsResults, outputFile, samplenames=None, dialect=None):
     samplesize=len(prsResults.values()[0][1])
     if not samplenames:
-        print "No sample names provided, generating sample names"
+        print("No sample names provided, generating sample names")
         samplenames={"Label":["Sample"+str(i) for i in range(len(prsResults))]}
 
-    outputdata=samplenames
-    for pvalue in prsResults.keys():
-        outputdata.append(["SNP_count_{}".format(pvalue)]+[prsResults[pvalue][0]]*samplesize)
-        outputdata.append(["PRS_{}".format(pvalue)]+prsResults[pvalue][1])
+    if len(samplenames)==samplesize:
+        outputdata=samplenames
+        for pvalue in prsResults.keys():
+            outputdata.append(["SNP_count_{}".format(pvalue)]+[prsResults[pvalue][0]]*samplesize)
+            outputdata.append(["PRS_{}".format(pvalue)]+prsResults[pvalue][1])
 
-    try:
-        with open(outputFile, "w") as f:
-            csvwriter=csv.writer(f, dialect=dialect)
-            for row in zip(*outputdata):
-                csvwriter.writerow(row)
-            print("Successfully wrote scores to "+ os.path.basename(outputFile))
-    except:
-        e = sys.exc_info()[0]
-        print( "<p>Error: %s</p>" % e )
-        print("Data output was unsuccessful.")
-        print("All is not lost, final results saved as binary format in file 'PRSOutput.pk'")
-        with open(os.path.dirname(outputFile)+"/PRSOutput.pk", "wb") as f:
-            pickle.dump(outputdata, f)
+        try:
+            with open(outputFile, "w") as f:
+                csvwriter=csv.writer(f, dialect=dialect)
+                for row in zip(*outputdata):
+                    csvwriter.writerow(row)
+                print("Successfully wrote scores to "+ os.path.basename(outputFile))
+        except:
+            e = sys.exc_info()[0]
+            print( "<p>Error: %s</p>" % e )
+            print("Data output was unsuccessful.")
+            print("All is not lost, final results saved as binary format in file 'PRSOutput.pk'")
+            with open(os.path.dirname(outputFile)+"/PRSOutput.pk", "wb") as f:
+                pickle.dump(outputdata, f)
+    else:
+        print("Unequal number of labels and samples, saving results to PRSOutput.pk")
+        outputdata=False
+        with open(os.path.join(os.path.dirname(outputFile),"PRSOutput.pk"), "wb") as f:
+            pickle.dump({"Samples": samplenames, "results": prsResults}, f)
+
     return outputdata
 
 def writeSNPlog(snpid, outputFile, dialect=None):
@@ -270,12 +274,11 @@ if __name__=="__main__":
     parser.add_argument("Output", action="store", help="The path and name for the output file")
 
     # Optional arguments
-
     parser.add_argument("--gwas_id", action="store", default=0, dest="gwas_id",type=int, help="Column number in your GWAS that contains SNP ID, with first column being 0, default is 0")
-    parser.add_argument("--gwas_p", action="store", default=7, dest="gwas_p", type=int, help="Column number in your GWAS that contains p-value, with first column being 0, default is 7")
-    parser.add_argument("--gwas_or", action="store", default=5, dest="gwas_or", type=int, help="Column number in your GWAS that contains odds-ratio/beta, with first column being 0, default is 5")
+    parser.add_argument("--gwas_p", action="store", default=1, dest="gwas_p", type=int, help="Column number in your GWAS that contains p-value, with first column being 0, default is 1")
+    parser.add_argument("--gwas_or", action="store", default=2, dest="gwas_or", type=int, help="Column number in your GWAS that contains odds-ratio/beta, with first column being 0, default is 2")
     parser.add_argument("--gwas_a1", action="store", default=3, dest="gwas_a1", type=int, help="Column number in your GWAS that contains allele A1, with first column being 0, default is 3. Allele A2 is assumed to be at column [gwas_a1+1]")
-    parser.add_argument("--gwas_maf", action="store", default=10, dest="gwas_maf", type=int, help="Column number in your GWAS that contains frequency of A1, with first column being 0, default is 10.")
+    parser.add_argument("--gwas_maf", action="store", default=5, dest="gwas_maf", type=int, help="Column number in your GWAS that contains frequency of A1, with first column being 0, default is 5.")
 
     #parser.add_argument("--geno_id", action="store", default=2, dest="geno_id",type=int, help="Column number in your genotype files that contains SNP ID, with first column being 0, default is 2")
     #parser.add_argument("--geno_start", action="store", default=9,dest="geno_start", type=int, help="Column number in your genotype files that contains the first genotype,  with first column being 0, default is 9.")
@@ -299,15 +302,17 @@ if __name__=="__main__":
 
     parser.add_argument("--sample_file", action="store", dest="sample_file", default="NOSAMPLE",help="path and name of the file that contain the sample labels. It is assumed that the sample labels are already in the same order as in the genotype file.")
 
-    parser.add_argument("--sample_delim", action="store", default=",", dest="sample_delim", help="Delimiter of the sample file. Default is comma")
+    parser.add_argument("--sample_file_delim", action="store", default=",", dest="sample_delim", help="Delimiter of the sample file. Default is comma")
 
     parser.add_argument("--sample_file_ID", action="store", default=[0], type=int, nargs="+", dest="sample_file_ID", help="Specify which columns in the sample file are used as labels. Can use one integer to specify one column, or multiple integers to specify multiple columns. Default is the first column")
 
-    parser.add_argument("--sample_file_skip", action="store",default=1, dest="sample_skip", help="Specify how many lines to skip in the sample file, i.e. which row do the labels start. Default is 1, which assumes that the sample files has column names and the labels start on the second line")
+    parser.add_argument("--sample_file_skip", action="store",default=1, dest="sample_skip", help="Specify how many lines to skip in the sample file, i.e. which row do the labels start. Default is 1, which assumes that the sample files has column names and the labels start on the second line", type=int)
 
     parser.add_argument("--no_maf", action="store_false", default=True, dest="use_maf", help="By default, the pipeline calculated the allele frequency in the genotype population. Use this flag to tell the script NOT to calculate MAF in the provided propulation and compare it with MAF in the GWAS, e.g, when the GWAS does not provide information for allele frequencies. MAF is needed to check the reference alleles of ambiguous SNPs (those whose A1 and A2 are reverese complements).  Not using this will result in ambiguous SNPs be discarded.")
 
     parser.add_argument("--snp_log", action="store", default=None, dest="snp_log", help="Specify the path for a log file that records the SNPs that are used at each threshold. Default is no log")
+
+    parser.add_argument("--check_dup", action="store_true", default=False, dest="checkdup", help="Add this flag if you want to check for and discard SNPs that are duplicated, which will take extra time. By default, the script will assume there is no duplicate SNPs. You can use clean.py to remove duplicated SNPs in your data ")
 
     results=parser.parse_args()
 
@@ -359,12 +364,14 @@ if __name__=="__main__":
     ##output file information
 
     outputPath=results.Output
+
+    # Sepcify whether to check for duplicate SNPs
+    checkDup= results.checkdup
+
     # Parsing Command-line arguments
 
     genoFileNamePattern=results.GENO
     genoFileNames=glob.glob(genoFileNamePattern)
-
-
 
     ##  start spark context
     APP_NAME=results.app_name
@@ -373,7 +380,7 @@ if __name__=="__main__":
     # if using spark < 2.0.0, use the pyspark module to make Spark context
     # conf = pyspark.SparkConf().setAppName(APP_NAME).set()#.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
-    sc   = spark.sparkContext
+    sc  = spark.sparkContext
 
     #sc = spark.sparkContext
     sc.setLogLevel("WARN")
@@ -390,10 +397,20 @@ if __name__=="__main__":
     LOGGER.warn("total of {} files".format(str(len(genoFileNames))))
     # 1. Load files
     genodata=sc.textFile(genoFileNamePattern)
-    LOGGER.warn("Using the GWAS file: {}".format(ntpath.basename(gwasFiles)))
+    #LOGGER.warn("Using the GWAS file: {}".format(ntpath.basename(gwasFiles)))
+    LOGGER.warn("Using the GWAS file: {}".format(gwasFiles))
     gwastable=spark.read.option("header",GWAS_has_header).option("delimiter",GWAS_delim).csv(gwasFiles).cache()
     print("Showing top 5 rows of GWAS file")
     gwastable.show(5)
+
+    LOGGER.warn("System recognizes the following information in the GWAS :")
+    LOGGER.warn("SNP ID : Column {}".format(gwas_id))
+    LOGGER.warn("P-values : Column {}".format(gwas_p))
+    LOGGER.warn("Effect size : Column {}".format(gwas_or))
+    LOGGER.warn("Allele A1 : Column {}".format(gwas_a1))
+    LOGGER.warn("Allele A2 : Column {}".format(gwas_a1+1))
+    if use_maf:
+        LOGGER.warn("Allele Frequencies : Column {}".format(gwas_maf))
 
     # 1.1 Filter GWAS and prepare odds ratio
 
@@ -402,7 +419,6 @@ if __name__=="__main__":
     gwasOddsMapMaxCA=sc.broadcast(gwasOddsMapMax).value  # Broadcast the map
 
     # ### 2. Initial processing
-
     # at this step, the genotypes are already filtered to keep only the ones in 'gwasOddsMapMax'
     bpMap={"A":"T", "T":"A", "C":"G", "G":"C"}
     tic=time()
@@ -416,25 +432,38 @@ if __name__=="__main__":
                 LOGGER.warn("Correcting strand alignment, using MAF")
                 genoA1f=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1], getMaf(line[2]))).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
                 gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1], line[gwas_maf])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasMaf"])
-                checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
 
-                flagMap=checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
+                checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
+                if checkDup:
+                    flagList = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collect()
+                    flagMap = rmDup(flagList)
+                else:
+                    flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
 
             else:
                 LOGGER.warn("Correcting strand alignment, wihtout using MAF")
                 genoA1f=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
 
-                gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1], line[gwas_maf])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasMaf"])
+                gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1], line[gwas_maf])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
                 checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
 
-                flagMap=checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collectAsMap()
+                if checkDup:
+                    flagList = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collect()
+                    flagMap = rmDup(flagList)
+                else:
+                    flagMap = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collectAsMap()
 
             LOGGER.warn("Generating genotype dosage while taking into account difference in strand alignment")
-            genotypeMax=genotable.map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
+            flagMap=sc.broadcast(flagMap).value
+            genotypeMax=genotable.filter(lambda line: line[0] in flagMap).map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
 
         else:
             LOGGER.warn("Generating genotype dosage without checking strand alignments")
             genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
+            if checkDup:
+                genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
+                genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
+
 
     elif filetype.lower()=="gen":
         LOGGER.warn("Genotype data format : GEN ")
@@ -443,26 +472,41 @@ if __name__=="__main__":
         if check_ref:
             if use_maf:
                 LOGGER.warn("Correcting strand alignment, using MAF")
-                genoA1f=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1], getMaf(line[geno_start::]))).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
+                genoA1f=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1], getMaf([float(x) for x in line[geno_start::]]))).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
                 gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1], line[gwas_maf])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasMaf"])
                 checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
-                flagMap=checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
+                if checkDup:
+                    LOGGER.warn("Searching and removing duplcated SNPs")
+                    flagList = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collect()
+                    flagMap = rmDup(flagList)
+                else:
+                    flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
             else:
                 LOGGER.warn("Correcting strand alignment, wihtout using MAF")
                 genoA1f=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
                 gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
                 checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
-                flagMap=checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collectAsMap()
+
+                if checkDup:
+                    LOGGER.warn("Searching and removing duplcated SNPs")
+                    flagList = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collect()
+                    flagMap = rmDup(flagList)
+                else:
+                    flagMap = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collectAsMap()
 
             LOGGER.warn("Generating genotype dosage while taking into account difference in strand alignment")
-            genotypeMax=genotable.map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
+            flagMap=sc.broadcast(flagMap).value
+            genotypeMax=genotable.filter(lambda line: line[0] in flagMap).map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
 
         else:
             LOGGER.warn("Generating genotype dosage without checking strand alignments")
             genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
+            if checkDup:
+                genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
+                genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
 
     LOGGER.warn("Dosage generated in {:3.1f} seconds".format(time()-tic) )
-    samplesize=int(len(genotable.first()[1])/3)
+    samplesize=int(len(genotypeMax.first()[1]))
     LOGGER.warn("Detected {} samples" .format(str(samplesize)))
 
     #genoa1f.map(lambda line:"\t".join([line[0], "\t".join(line[1]), str(line[2])])).saveAsTextFile("../MOMS_info03_maf")
@@ -476,7 +520,6 @@ if __name__=="__main__":
         normalizedPRS=[x/totalcount for x in PRS]
         return (totalcount,PRS)
 
-
     def calcAll(genotypeRDD, gwasRDD, thresholdlist, logsnp):
         prsMap={}
         if len(thresholdlist)>1:
@@ -484,10 +527,8 @@ if __name__=="__main__":
         else:
             thresholdNoMaxSorted=thresholdlist
         thresholdmax=max(thresholdlist)
-
         idlog={}
         start=time()
-
         for threshold in thresholdNoMaxSorted:
             tic=time()
             gwasFilteredBC=sc.broadcast(filterGWASByP_DF(GWASdf=gwasRDD, pcolumn=gwas_p, idcolumn=gwas_id, oddscolumn=gwas_or, pHigh=threshold, logOdds=log_or))
@@ -506,15 +547,17 @@ if __name__=="__main__":
         return prsMap, idlog
 
     prsDict, snpids=calcAll(genotypeMax,gwastable, thresholds, logsnp=snp_log)
-
+    
+    if snp_log:
+        logoutput=writeSNPlog(snpids, snp_log)
 
     if sampleFilePath!="NOSAMPLE":
         subjNames=getSampleNames(sampleFilePath,sampleFileDelim,sampleFileID, skip=1)
+        LOGGER.warn("Extracted {} sample labels".format(len(subjNames)))
         output=writePRS(prsDict,  outputPath, samplenames=subjNames)
     else:
         LOGGER.warn("No sample file detected, generating labels for samples.")
         output=writePRS(prsDict,  outputPath, samplenames=None)
 
-    if snp_log:
-        logoutput=writeSNPlog(snpids, snp_log)
+
     sc.stop()
