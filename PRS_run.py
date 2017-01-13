@@ -556,7 +556,7 @@ if __name__=="__main__":
 	    logoutput=writeSNPlog(snpids, snp_log)
 
 	if sampleFilePath!="NOSAMPLE":
-	    subjNames=getSampleNames(sampleFilePath,sampleFileDelim,sampleFileID, skip=1)
+	    subjNames=getSampleNames(sampleFilePath,sampleFileDelim,sampleFileID, skip=sample_skip)
 	    LOGGER.warn("Extracted {} sample labels".format(len(subjNames)))
 	    output=writePRS(prsDict,  outputPath, samplenames=subjNames)
 	else:
