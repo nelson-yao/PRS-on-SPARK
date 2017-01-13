@@ -98,7 +98,7 @@ def checkAlignment(line):
     gwasA1F=line[1][1]
 
     try:
-        if genoA1==bpMap[genoA1]:
+        if genoA2==bpMap[genoA1]:
             if gwasA1F==".":
                 flag="discard"
             else:
@@ -133,7 +133,7 @@ def checkAlignmentDF(dataframe, bpMap):
     gwasA2=dataframe[6]
     gwasA1F=dataframe[7]
     try:
-        if genoA1==bpMap[genoA1]:
+        if genoA2==bpMap[genoA1]:
             if gwasA1F==".":
                 flag="discard"
             else:
@@ -168,7 +168,7 @@ def checkAlignmentDFnoMAF(dataframe, bpMap):
     gwasA2=dataframe[5]
 
     try:
-        if genoA1==bpMap[genoA1]:
+        if genoA2==bpMap[genoA1]:
             flag="discard"
         elif genoA2==gwasA1 or genoA2==bpMap[gwasA1]:
             flag="flip"
