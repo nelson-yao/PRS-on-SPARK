@@ -214,7 +214,8 @@ def writePRS(prsResults, outputFile, samplenames=None, dialect=None):
     print("Collected {} sample labels".format(labelnumber))
     if labelnumber==samplesize:
         outputdata=samplenames
-        for pvalue in prsResults.keys():
+        pvaluelist=sorted(list(prsResults.keys()))
+        for pvalue in pvaluelist:
             outputdata.append(["SNP_count_{}".format(pvalue)]+[prsResults[pvalue][0]]*samplesize)
             outputdata.append(["PRS_{}".format(pvalue)]+prsResults[pvalue][1])
 
