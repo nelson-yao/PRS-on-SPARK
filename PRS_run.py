@@ -46,18 +46,20 @@ def makeGenotypeCheckRef(line, checkMap, toDF=False):
             AA2=[x*2 for x in AA]
             genotype=list(map(add, AA2, AB))
 
-
         elif checkMap[rsid]=="flip":
-            AA=gen[0::3]
+            AA=gen[2::3]
             AB=gen[1::3]
             AA2=[x*2 for x in AA]
             genotype=list(map(add, AA2, AB))
+
         else:
             genotype=[0.0]*(len(gen)/3)
+
 
     except KeyError:
         print("SNP {} was not accounted for in the alignment checking step, discarding this SNP".format(rsid))
         genotype=[0.0]*(len(gen)/3)
+
     finally:
         if toDF:
             return [rsid]+genotype
