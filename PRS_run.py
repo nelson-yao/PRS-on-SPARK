@@ -157,7 +157,7 @@ def checkAlignmentDF(dataframe, bpMap):
                     else:
                         flag="flip"
         #example if geno has (A,G) and GWAS has (G,T), then need to discard
-        elif (genoA2==gwasA1 and genoA1==gwasA2) or (genoA2==bpMap[gwasA1] and genoA1==bpMap[gwasA2]) ) :
+        elif (genoA2==gwasA1 and genoA1==gwasA2) or (genoA2==bpMap[gwasA1] and genoA1==bpMap[gwasA2]) :
             flag="flip"
 
         elif (genoA1==gwasA1 and genoA2==gwasA2) or (genoA1==bpMap[gwasA1] and genoA2==bpMap[gwasA2]) :
@@ -183,7 +183,7 @@ def checkAlignmentDFnoMAF(dataframe, bpMap):
     if genoA1 in bpMap:
         if genoA2==bpMap[genoA1] or genoA1==genoA2:  # discard ambiguous case and the case where A1 = A2 in the genotype data
             flag="discard"
-        elif (genoA2==gwasA1 and genoA1==gwasA2) or (genoA2==bpMap[gwasA1] and genoA1==bpMap[gwasA2]) ) :
+        elif (genoA2==gwasA1 and genoA1==gwasA2) or (genoA2==bpMap[gwasA1] and genoA1==bpMap[gwasA2]) :
             flag="flip"
         elif (genoA1==gwasA1 and genoA2==gwasA2) or (genoA1==bpMap[gwasA1] and genoA2==bpMap[gwasA2]) :
             flag="keep"
@@ -453,7 +453,7 @@ if __name__=="__main__":
 
         ## (snpid, [genotypes])
         genotable=genointermediate.map(lambda line: (line[geno_id], list(itertools.chain.from_iterable(line[5::])))).mapValues(lambda geno: [float(x) for x in geno])
-	    if check_ref:
+        if check_ref:
 	        if use_maf:
 	            LOGGER.warn("Correcting strand alignment, using MAF")
 	            genoA1f=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1], getA1f(line[2]))).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
@@ -488,7 +488,7 @@ if __name__=="__main__":
 	        flagMap=sc.broadcast(flagMap).value
 	        genotypeMax=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard").map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
 
-	    else:
+        else:
 	        LOGGER.warn("Generating genotype dosage without checking reference allele alignments")
 	        genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
 	        if checkDup:
