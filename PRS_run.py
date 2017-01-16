@@ -20,7 +20,8 @@ from time import time
 import argparse
 
 
-def getMaf(geno):
+# Takes a line in the genotype file and return the frequency of A1 allele
+def getA1f(geno):
     AA=geno[0::3]
     AB=geno[1::3]
     AA2=[x*2 for x in AA]
@@ -28,7 +29,7 @@ def getMaf(geno):
     A1F=sum(A1count)/(float(len(AA2))*2)
     return A1F
 
-
+# Takes an array of triplets and convert to number of A1 alleles
 def makeGenotype(line):
     AA=line[0::3]
     AB= line[1::3]
@@ -36,6 +37,7 @@ def makeGenotype(line):
     genotype=[AA2[i]+AB[i] for i in range(len(AA2))]
     return  genotype
 
+# Takes an array of triplets and convert to number of A1 alleles, while checking the strand alignments
 def makeGenotypeCheckRef(line, checkMap, toDF=False):
     rsid=line[0]
     gen=line[1]
@@ -78,18 +80,19 @@ def filterGWASByP(GWASRdd, pcolumn,  pHigh, oddscolumn,idcolumn, pLow=0, logOdds
     GWASoddspair=GWAS_Odds.collectAsMap()
     return GWASoddspair
 
+
 def filterGWASByP_DF(GWASdf, pcolumn,  pHigh, oddscolumn,idcolumn, pLow=0, logOdds=False):
     GWAS_Pfiltered=GWASdf.rdd.filter(lambda line: (float(line[pcolumn])<=pHigh) and (float(line[pcolumn])>=pLow))
     if logOdds:
-
         GWAS_Odds=GWAS_Pfiltered.map(lambda line: (line[idcolumn],log(float(line[oddscolumn]))))
+
     else:
 
-        GWAS_Odds=GWAS_Pfiltered.map(lambda line: (line[idcolumn],  float(line[oddscolumn])))
-    GWASoddspair=GWAS_Odds.collectAsMap()
+        GWAS_Odds=GWAS_Pfiltered.map(lambda line: (line[idcolumn],  float(line[oddscolumn])))  ## make tuples of the format (snpid, effect size)
+    GWASoddspair=GWAS_Odds.collectAsMap()   # make a python dictionary of the format { snpid: effect_size }
     return GWASoddspair
 
-## The following function is for checking allignment in genotype RDDs
+## The following function is for checking alignment in genotype RDDs
 def checkAlignment(line):
     bpMap={"A":"T", "T":"A", "C":"G", "G":"C"}
     genoA1=line[0][0][0]
@@ -126,41 +129,51 @@ def checkAlignment(line):
     finally:
         return flag
 
+
+# checking for reference allele alignment (i.e is the GWAS A1 the same as A1 in the genotype)
 def checkAlignmentDF(dataframe, bpMap):
     snpid=dataframe[0]
     genoA1=dataframe[1]
     genoA2=dataframe[2]
     genoA1F=dataframe[3]
+    # no number 4 because the 5th column has the snpid from the GWAS
     gwasA1=dataframe[5]
     gwasA2=dataframe[6]
     gwasA1F=dataframe[7]
-    try:
-        if genoA2==bpMap[genoA1]:
+    if genoA1 in bpMap:
+        if genoA1==genoA2 or gwasA1 == gwasA2:
+            flag='discard'
+        elif genoA2==bpMap[genoA1]:  # checking ambiguous SNP in the genotype
             if gwasA1F==".":
                 flag="discard"
             else:
+
                 gwasA1F=float(gwasA1F)
                 genoA1Fdiff=genoA1F-0.5
                 gwasA1Fdiff=float(gwasA1F)-0.5
-
+                # if the allele frequency in the GWAS or genotype is between 0.4 and 0.6, too close to decide, discard the SNP
                 if abs(genoA1Fdiff)<0.1 or abs(gwasA1Fdiff)<0.1:
                     flag="discard"
                 else:
-                    if genoA1Fdiff*genoA1Fdiff>0:
+                    if genoA1Fdiff * gwasA1Fdiff>0:
                         flag="keep"
                     else:
                         flag="flip"
-        elif genoA2==gwasA1 or genoA2==bpMap[gwasA1]:
+        #example if geno has (A,G) and GWAS has (G,T), then need to discard
+        elif (genoA2==gwasA1 and genoA1==gwasA2) or (genoA2==bpMap[gwasA1] and genoA1==bpMap[gwasA2]) ) :
             flag="flip"
-        else:
+
+        elif (genoA1==gwasA1 and genoA2==gwasA2) or (genoA1==bpMap[gwasA1] and genoA2==bpMap[gwasA2]) :
             flag="keep"
 
-    except KeyError:
-        flag="discard"
-        print("Invalid Genotypes for SNP {}".format(snpid))
+        else:
+            flag="discard"
 
-    finally:
-        return (snpid,flag)
+    else :
+        flag="discard"
+        print("Invalid Genotypes for SNP {}; genotype Alleles:{},{}; GWAS alleles: {},{}".format(snpid,genoA1, genoA2, gwasA1, gwasA2))
+
+    return (snpid,flag)
 
 def checkAlignmentDFnoMAF(dataframe, bpMap):
     snpid=dataframe[0]
@@ -169,20 +182,21 @@ def checkAlignmentDFnoMAF(dataframe, bpMap):
     gwasA1=dataframe[4]
     gwasA2=dataframe[5]
 
-    try:
-        if genoA2==bpMap[genoA1]:
+    if genoA1 in bpMap:
+        if genoA2==bpMap[genoA1] or genoA1==genoA2:  # discard ambiguous case and the case where A1 = A2 in the genotype data
             flag="discard"
-        elif genoA2==gwasA1 or genoA2==bpMap[gwasA1]:
+        elif (genoA2==gwasA1 and genoA1==gwasA2) or (genoA2==bpMap[gwasA1] and genoA1==bpMap[gwasA2]) ) :
             flag="flip"
-        else:
+        elif (genoA1==gwasA1 and genoA2==gwasA2) or (genoA1==bpMap[gwasA1] and genoA2==bpMap[gwasA2]) :
             flag="keep"
+        else:
+            flag='discard'
 
-    except KeyError:
+    else:
         flag="discard"
-        print("Invalid Genotypes for SNP {}".format(snpid))
+        print("Invalid Genotypes for SNP {}; genotype Alleles:{},{}; GWAS alleles: {},{}".format(snpid,genoA1, genoA2, gwasA1, gwasA2))
 
-    finally:
-        return (snpid,flag)
+    return (snpid,flag)
 
 
 
@@ -292,7 +306,7 @@ if __name__=="__main__":
     #parser.add_argument("--GENO_delim", action="store", default="\t", dest="GENO_delim", help="Delimtier of the GWAS file, default is tab-delimiter ")
 
 
-	parser.add_argument("--filetype", action="store",default="VCF", dest="filetype", help="The type of genotype file used as inputm choose between VCF and GEN, default is VCF", choices=set(["VCF", "GEN"]))
+	parser.add_argument("--filetype", action="store",default="VCF", dest="filetype", help="The type of genotype file used as input , choose between VCF and GEN, default is VCF", choices=set(["VCF", "GEN"]))
 
 	parser.add_argument("--thresholds", action="store", default=[0.5, 0.2, 0.1, 0.05, 0.01, 0.001, 0.0001], dest="thresholds", help="The p-value thresholds that controls which SNPs are used from the GWAS. Specifying the p-values simply by input one after another. default is [0.5, 0.2, 0.1, 0.05, 0.01, 0.001, 0.0001]", nargs="+", type=float)
 
@@ -374,13 +388,16 @@ if __name__=="__main__":
     # Sepcify whether to check for duplicate SNPs
 	checkDup= results.checkdup
 
-    # Parsing Command-line arguments
 
+    # get the name of the genotype files
 	genoFileNamePattern=results.GENO
+
+    # get the whole list of the file names
 	genoFileNames=glob.glob(genoFileNamePattern)
 
     ##  start spark context
 	APP_NAME=results.app_name
+
 	spark=SparkSession.builder.appName(APP_NAME).getOrCreate()
 
     # if using spark < 2.0.0, use the pyspark module to make Spark context
@@ -402,6 +419,8 @@ if __name__=="__main__":
 
 	LOGGER.warn("total of {} files".format(str(len(genoFileNames))))
 	# 1. Load files
+
+    # read the raw data
 	genodata=sc.textFile(genoFileNamePattern)
 	#LOGGER.warn("Using the GWAS file: {}".format(ntpath.basename(gwasFiles)))
 	LOGGER.warn("Using the GWAS file: {}".format(gwasFiles))
@@ -420,7 +439,8 @@ if __name__=="__main__":
 
     # 1.1 Filter GWAS and prepare odds ratio
 
-	maxThreshold=max(thresholds)
+    # filter the genotype to contain only the SNPs less than the maximum p value threshold in the GWAS
+	maxThreshold=max(thresholds)  # maximum p value
 	gwasOddsMapMax=filterGWASByP_DF(GWASdf=gwastable, pcolumn=gwas_p, idcolumn=gwas_id, oddscolumn=gwas_or, pHigh=maxThreshold, logOdds=log_or)
 	gwasOddsMapMaxCA=sc.broadcast(gwasOddsMapMax).value  # Broadcast the map
 
@@ -430,15 +450,21 @@ if __name__=="__main__":
 	tic=time()
 	if filetype.lower()=="vcf":
 	    LOGGER.warn("Genotype data format : VCF ")
+
+        # [chrom, bp, snpid, A1, A2, *genotype]
 	    genointermediate=genodata.filter(lambda line: ("#" not in line)).map(lambda line: line.split(GENO_delim)).filter(lambda line: line[geno_id] in gwasOddsMapMaxCA).map(lambda line: line[0:5]+[chunk.split(":")[3] for chunk in line[geno_start::]]).map(lambda line: line[0:5]+[triplet.split(",") for triplet in line[5::]])
 
-	    genotable=genointermediate.map(lambda line: (line[geno_id], list(itertools.chain.from_iterable(line[5::])))).mapValues(lambda geno: [float(x) for x in geno])
+        ## (snpid, [genotypes])
+        genotable=genointermediate.map(lambda line: (line[geno_id], list(itertools.chain.from_iterable(line[5::])))).mapValues(lambda geno: [float(x) for x in geno])
 	    if check_ref:
 	        if use_maf:
 	            LOGGER.warn("Correcting strand alignment, using MAF")
-	            genoA1f=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1], getMaf(line[2]))).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
-	            gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1], line[gwas_maf])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasMaf"])
+	            genoA1f=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1], getA1f(line[2]))).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
 
+                # 'GwasA1F' means the allele of the A1 frequency in the GWAS
+	            gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1], line[gwas_maf])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasA1F"])
+
+                # [ geno_snpid, genoA1, genoA2, genoA1f, gwas_snpid, gwasA1, gwasA2, gwasA1f]
 	            checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
 	            if checkDup:
 	                flagList = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collect()
@@ -447,7 +473,7 @@ if __name__=="__main__":
 	                flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
 
 	        else:
-	            LOGGER.warn("Correcting strand alignment, wihtout using MAF")
+	            LOGGER.warn("Correcting strand alignment, without using MAF")
 	            genoA1f=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
 
 	            gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
@@ -478,7 +504,7 @@ if __name__=="__main__":
 	    if check_ref:
 	        if use_maf:
 	            LOGGER.warn("Correcting strand alignment, using MAF")
-	            genoA1f=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1], getMaf([float(x) for x in line[geno_start::]]))).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
+	            genoA1f=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1], getA1f([float(x) for x in line[geno_start::]]))).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
 	            gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1], line[gwas_maf])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasMaf"])
 	            checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
 	            if checkDup:
