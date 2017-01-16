@@ -525,7 +525,7 @@ if __name__=="__main__":
 
             LOGGER.warn("Generating genotype dosage while taking into account difference in strand alignment")
             flagMap=sc.broadcast(flagMap).value
-            genotypeMax=genotable.filter(lambda line: line[0] in flagMap).map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
+            genotypeMax=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
 
         else:
             LOGGER.warn("Generating genotype dosage without checking strand alignments")
@@ -580,14 +580,15 @@ if __name__=="__main__":
     # generate labels for samples
     if filetype.lower()=="vcf":
         subjNames=genodata.filter(lambda line: "#CHROM" in line).map(lambda line: line.split(GENO_delim)[9::])
+        output=writePRS(prsDict,  outputPath, samplenames=subjNames)
     elif sampleFilePath!="NOSAMPLE":
         # get sample name from the provided sample file
         subjNames=getSampleNames(sampleFilePath,sampleFileDelim,sampleFileID, skip=sample_skip)
         LOGGER.warn("Extracted {} sample labels".format(len(subjNames)))
         output=writePRS(prsDict,  outputPath, samplenames=subjNames)
     else:
-       LOGGER.warn("No sample file detected, generating labels for samples.")
-       output=writePRS(prsDict,  outputPath, samplenames=None)
+        LOGGER.warn("No sample file detected, generating labels for samples.")
+        output=writePRS(prsDict,  outputPath, samplenames=None)
 
 
     sc.stop()
