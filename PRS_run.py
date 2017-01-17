@@ -257,7 +257,7 @@ def writeSNPlog(snpid, outputFile, dialect=None):
     outputdata=[]
     maxT=max(snpid.keys())
     maxLen=len(snpid[maxT])
-    for pvalue in snpid.keys():
+    for pvalue in sorted(list(snpid.keys())):
         outputdata.append([str(pvalue)]+sorted(snpid[pvalue])+[""]*(maxLen-len(snpid[pvalue])))
     try:
         with open(outputFile, "w") as f:
