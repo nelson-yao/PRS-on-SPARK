@@ -406,33 +406,33 @@ if __name__=="__main__":
     sc.setLogLevel("WARN")
     log4jLogger = sc._jvm.org.apache.log4j
     LOGGER = log4jLogger.LogManager.getLogger(__name__)
-    LOGGER.warn("Start Reading Files")
-    LOGGER.warn("Using these genoytpe files: ")
+    print("Start Reading Files")
+    print("Using these genoytpe files: ")
 
     for filename in genoFileNames[:min(24, len(genoFileNames))]:
-        LOGGER.warn(filename)
+        print(filename)
     if len(genoFileNames)>23:
-        LOGGER.warn("and more...")
+        print("and more...")
 
-    LOGGER.warn("total of {} files".format(str(len(genoFileNames))))
+    print("total of {} files".format(str(len(genoFileNames))))
     # 1. Load files
 
     # read the raw data
     genodata=sc.textFile(genoFileNamePattern)
-    #LOGGER.warn("Using the GWAS file: {}".format(ntpath.basename(gwasFiles)))
-    LOGGER.warn("Using the GWAS file: {}".format(gwasFiles))
+    #print("Using the GWAS file: {}".format(ntpath.basename(gwasFiles)))
+    print("Using the GWAS file: {}".format(gwasFiles))
     gwastable=spark.read.option("header",GWAS_has_header).option("delimiter",GWAS_delim).csv(gwasFiles).cache()
     print("Showing top 5 rows of GWAS file")
     gwastable.show(5)
 
-    LOGGER.warn("System recognizes the following information in the GWAS :")
-    LOGGER.warn("SNP ID : Column {}".format(gwas_id))
-    LOGGER.warn("P-values : Column {}".format(gwas_p))
-    LOGGER.warn("Effect size : Column {}".format(gwas_or))
-    LOGGER.warn("Allele A1 : Column {}".format(gwas_a1))
-    LOGGER.warn("Allele A2 : Column {}".format(gwas_a1+1))
+    print("System recognizes the following information in the GWAS :")
+    print("SNP ID : Column {}".format(gwas_id))
+    print("P-values : Column {}".format(gwas_p))
+    print("Effect size : Column {}".format(gwas_or))
+    print("Allele A1 : Column {}".format(gwas_a1))
+    print("Allele A2 : Column {}".format(gwas_a1+1))
     if use_maf:
-        LOGGER.warn("Allele Frequencies : Column {}".format(gwas_a1f))
+        print("Allele Frequencies : Column {}".format(gwas_a1f))
 
     # 1.1 Filter GWAS and prepare odds ratio
 
@@ -446,7 +446,7 @@ if __name__=="__main__":
     bpMap={"A":"T", "T":"A", "C":"G", "G":"C"}
     tic=time()
     if filetype.lower()=="vcf":
-        LOGGER.warn("Genotype data format : VCF ")
+        print("Genotype data format : VCF ")
 
         # [chrom, bp, snpid, A1, A2, *genotype]
         genointermediate=genodata.filter(lambda line: ("#" not in line)).map(lambda line: line.split(GENO_delim)).filter(lambda line: line[geno_id] in gwasOddsMapMaxCA).map(lambda line: line[0:5]+[chunk.split(":")[3] for chunk in line[geno_start::]]).map(lambda line: line[0:5]+[triplet.split(",") for triplet in line[5::]])
@@ -455,7 +455,7 @@ if __name__=="__main__":
         genotable=genointermediate.map(lambda line: (line[geno_id], list(itertools.chain.from_iterable(line[5::])))).mapValues(lambda geno: [float(x) for x in geno])
         if check_ref:
             if use_maf:
-                LOGGER.warn("Correcting strand alignment, using MAF")
+                print("Correcting strand alignment, using MAF")
                 genoA1f=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1], getA1f(line[2]))).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
 
                 # 'GwasA1F' means the allele of the A1 frequency in the GWAS
@@ -470,7 +470,7 @@ if __name__=="__main__":
                     flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
 
             else:
-                LOGGER.warn("Correcting strand alignment, without using MAF")
+                print("Correcting strand alignment, without using MAF")
                 genoalleles=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
 
                 gwasalleles=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
@@ -484,59 +484,59 @@ if __name__=="__main__":
                     # no need to check the duplicates if the data is preprocessed
                     flagMap = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collectAsMap()
 
-            LOGGER.warn("Generating genotype dosage while taking into account difference in strand alignment")
+            print("Generating genotype dosage while taking into account difference in strand alignment")
             flagMap=sc.broadcast(flagMap).value
             genotypeMax=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard").map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
 
         else:
-            LOGGER.warn("Generating genotype dosage without checking reference allele alignments")
+            print("Generating genotype dosage without checking reference allele alignments")
             genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
             if checkDup:
                 genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
                 genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
 
     elif filetype.lower() == "gen":
-        LOGGER.warn("Genotype data format : GEN")
+        print("Genotype data format : GEN")
         genotable=genodata.map(lambda line: line.split(GENO_delim)).filter(lambda line: line[geno_id] in gwasOddsMapMaxCA).map(lambda line: (line[geno_id], line[geno_start::])).mapValues(lambda geno: [float(call) for call in geno])
         if check_ref:
             if use_maf:
-                LOGGER.warn("Correcting strand alignment, using MAF")
+                print("Correcting strand alignment, using MAF")
                 genoA1f=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1], getA1f([float(x) for x in line[geno_start::]]))).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
                 gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1], line[gwas_a1f])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasA1f" ])
                 checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
                 if checkDup:
-                    LOGGER.warn("Searching and removing duplicated SNPs")
+                    print("Searching and removing duplicated SNPs")
                     flagList = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collect()
                     flagMap = rmDup(flagList)
                 else:
                     flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
             else:
-                LOGGER.warn("Correcting strand alignment, without using MAF")
+                print("Correcting strand alignment, without using MAF")
                 genoalleles=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
                 gwasalleles=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
                 checktable=genoalleles.join(gwasalleles, genoalleles["Snpid_geno"]==gwasalleles["Snpid_gwas"], "inner").cache()
 
                 if checkDup:
-                    LOGGER.warn("Searching and removing duplicated SNPs")
+                    print("Searching and removing duplicated SNPs")
                     flagList = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collect()
                     flagMap = rmDup(flagList)
                 else:
                     flagMap = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collectAsMap()
 
-            LOGGER.warn("Generating genotype dosage while taking into account difference in strand alignment")
+            print("Generating genotype dosage while taking into account difference in strand alignment")
             flagMap=sc.broadcast(flagMap).value
             genotypeMax=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
 
         else:
-            LOGGER.warn("Generating genotype dosage without checking strand alignments")
+            print("Generating genotype dosage without checking strand alignments")
             genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
             if checkDup:
                 genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
                 genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
 
-    LOGGER.warn("Dosage generated in {:f} seconds".format(time()-tic) )
+    print("Dosage generated in {:f} seconds".format(time()-tic) )
     samplesize=int(len(genotypeMax.first()[1]))
-    LOGGER.warn("Detected {} samples" .format(str(samplesize)))
+    print("Detected {} samples" .format(str(samplesize)))
 
     #genoa1f.map(lambda line:"\t".join([line[0], "\t".join(line[1]), str(line[2])])).saveAsTextFile("../MOMS_info03_maf")
 
@@ -560,7 +560,7 @@ if __name__=="__main__":
             tic=time()
             gwasFilteredBC=sc.broadcast(filterGWASByP_DF(GWASdf=gwasRDD, pcolumn=gwas_p, idcolumn=gwas_id, oddscolumn=gwas_or, pHigh=threshold, logOdds=log_or))
             #gwasFiltered=spark.sql("SELECT snpid, gwas_or_float FROM gwastable WHERE gwas_p_float < {:f}".format(threshold)
-            LOGGER.warn("Filtered GWAS at threshold of {}. Time spent : {:f} seconds".format(str(threshold), time()-tic))
+            print("Filtered GWAS at threshold of {}. Time spent : {:f} seconds".format(str(threshold), time()-tic))
             checkpoint=time()
             filteredgenotype=genotypeRDD.filter(lambda line: line[0] in gwasFilteredBC.value)
 
@@ -569,7 +569,7 @@ if __name__=="__main__":
                     idlog[threshold]=filteredgenotype.map(lambda line:line[0]).collect()
                 prsMap[threshold]=calcPRSFromGeno(filteredgenotype, gwasFilteredBC.value)
 
-                LOGGER.warn("Finished calculating PRS at threshold of {}. Time spent : {:f} seconds".format(str(threshold), time()-checkpoint))
+                print("Finished calculating PRS at threshold of {}. Time spent : {:f} seconds".format(str(threshold), time()-checkpoint))
         return prsMap, idlog
 
     prsDict, snpids=calcAll(genotypeMax,gwastable, thresholds, logsnp=snp_log)
@@ -585,10 +585,10 @@ if __name__=="__main__":
     if sampleFilePath!="NOSAMPLE":
         # get sample name from the provided sample file
         subjNames=getSampleNames(sampleFilePath,sampleFileDelim,sampleFileID, skip=sample_skip)
-        LOGGER.warn("Extracted {} sample labels".format(len(subjNames[0])))
+        print("Extracted {} sample labels".format(len(subjNames[0])))
         output=writePRS(prsDict,  outputPath, samplenames=subjNames)
     else:
-        LOGGER.warn("No sample file detected, generating labels for samples.")
+        print("No sample file detected, generating labels for samples.")
         output=writePRS(prsDict,  outputPath, samplenames=None)
 
     sc.stop()
