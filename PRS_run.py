@@ -578,17 +578,17 @@ if __name__=="__main__":
     if snp_log:
         logoutput=writeSNPlog(snpids, snp_log)
     # generate labels for samples
-    if filetype.lower()=="vcf":
-        subjNames=genodata.filter(lambda line: "#CHROM" in line).map(lambda line: line.split(GENO_delim)[9::])
-        output=writePRS(prsDict,  outputPath, samplenames=subjNames)
-    elif sampleFilePath!="NOSAMPLE":
+    #if filetype.lower()=="vcf":
+        #subjNames=genodata.filter(lambda line: "#CHROM" in line).map(lambda line: line.split(GENO_delim)[9::]).collect()[0]
+        #output=writePRS(prsDict,  outputPath, samplenames=subjNames)
+
+    if sampleFilePath!="NOSAMPLE":
         # get sample name from the provided sample file
         subjNames=getSampleNames(sampleFilePath,sampleFileDelim,sampleFileID, skip=sample_skip)
-        LOGGER.warn("Extracted {} sample labels".format(len(subjNames)))
+        LOGGER.warn("Extracted {} sample labels".format(len(subjNames[0])))
         output=writePRS(prsDict,  outputPath, samplenames=subjNames)
     else:
         LOGGER.warn("No sample file detected, generating labels for samples.")
         output=writePRS(prsDict,  outputPath, samplenames=None)
-
 
     sc.stop()
