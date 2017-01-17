@@ -89,42 +89,7 @@ def filterGWASByP_DF(GWASdf, pcolumn,  pHigh, oddscolumn,idcolumn, pLow=0, logOd
     GWASoddspair=GWAS_Odds.collectAsMap()   # make a python dictionary of the format { snpid: effect_size }
     return GWASoddspair
 
-## The following function is for checking alignment in genotype RDDs
-def checkAlignment(line):
-    bpMap={"A":"T", "T":"A", "C":"G", "G":"C"}
-    genoA1=line[0][0][0]
-    genoA2=line[0][0][1]
-    genoA1F=line[0][1]
-    gwasA1=line[1][0][0]
-    gwasA2=line[1][0][1]
-    gwasA1F=line[1][1]
 
-    try:
-        if genoA2==bpMap[genoA1]:
-            if gwasA1F==".":
-                flag="discard"
-            else:
-                gwasA1F=float(gwasA1F)
-                genoA1Fdiff=genoA1F-0.5
-                gwasA1Fdiff=float(gwasA1F)-0.5
-
-                if abs(genoA1Fdiff)<0.1 or abs(gwasA1Fdiff)<0.1:
-                    flag="discard"
-                else:
-                    if genoA1Fdiff*genoA1Fdiff>0:
-                        flag="keep"
-                    else:
-                        flag="flip"
-        elif genoA2==gwasA1 or genoA2==bpMap[gwasA1]:
-            flag="flip"
-        else:
-            flag="keep"
-
-    except KeyError:
-        flag="discard"
-
-    finally:
-        return flag
 
 
 # checking for reference allele alignment (i.e is the GWAS A1 the same as A1 in the genotype)
