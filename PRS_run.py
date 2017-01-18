@@ -1,4 +1,3 @@
-
  # -*- coding: utf-8 -*-
 from __future__ import division
 
@@ -90,8 +89,6 @@ def filterGWASByP_DF(GWASdf, pcolumn,  pHigh, oddscolumn,idcolumn, pLow=0, logOd
     return GWASoddspair
 
 
-
-
 # checking for reference allele alignment (i.e is the GWAS A1 the same as A1 in the genotype)
 def checkAlignmentDF(dataframe, bpMap):
     snpid=dataframe[0]
@@ -109,7 +106,6 @@ def checkAlignmentDF(dataframe, bpMap):
             if gwasA1F==".":
                 flag="discard"
             else:
-
                 gwasA1F=float(gwasA1F)
                 genoA1Fdiff=genoA1F-0.5
                 gwasA1Fdiff=float(gwasA1F)-0.5
@@ -130,7 +126,6 @@ def checkAlignmentDF(dataframe, bpMap):
 
         else:
             flag="discard"
-
     else :
         flag="discard"
         print("Invalid Genotypes for SNP {}; genotype Alleles:{},{}; GWAS alleles: {},{}".format(snpid,genoA1, genoA2, gwasA1, gwasA2))
@@ -218,12 +213,21 @@ def writePRS(prsResults, outputFile, samplenames=None, dialect=None):
 
     return outputdata
 
-def writeSNPlog(snpid, outputFile, dialect=None):
+def writeSNPlog(snpidmap, outputFile, flagMap, dialect=None):
     outputdata=[]
-    maxT=max(snpid.keys())
-    maxLen=len(snpid[maxT])
-    for pvalue in sorted(list(snpid.keys())):
-        outputdata.append([str(pvalue)]+sorted(snpid[pvalue])+[""]*(maxLen-len(snpid[pvalue])))
+    maxT=max(snpidmap.keys())
+    maxLen=len(snpidmap[maxT])
+    for pvalue in sorted(list(snpidmap.keys())):
+    
+        sortedlist=sorted(snpidmap[pvalue])
+        outputdata.append([str(pvalue)]+sortedlist+[""]*(maxLen-len(sortedlist)))
+
+        # get the flag for each snp in the snp log
+        flaglist=[str(pvalue)+"_flag"]+[flagMap[snpid] for snpid in sortedlist]+[""]*(maxLen-len(sortedlist))
+        outputdata.append(flaglist)
+    discardlist=[snp for snp in flagMap.keys() if flagMap[snp]=="discard"]
+    outputdata.append(["Discard"]+discardlist+[""]*(maxLen-len(discardlist)))
+
     try:
         with open(outputFile, "w") as f:
             csvwriter=csv.writer(f, dialect=dialect)
@@ -541,7 +545,7 @@ if __name__=="__main__":
 
     # log which SNPs are used in PRS
     if snp_log:
-        logoutput=writeSNPlog(snpids, snp_log)
+        logoutput=writeSNPlog(snpids, snp_log, flagMap)
     # generate labels for samples
     #if filetype.lower()=="vcf":
         #subjNames=genodata.filter(lambda line: "#CHROM" in line).map(lambda line: line.split(GENO_delim)[9::]).collect()[0]
