@@ -213,20 +213,22 @@ def writePRS(prsResults, outputFile, samplenames=None, dialect=None):
 
     return outputdata
 
-def writeSNPlog(snpidmap, outputFile, flagMap, dialect=None):
+def writeSNPlog(snpidmap, outputFile, flagMap=None, dialect=None):
     outputdata=[]
     maxT=max(snpidmap.keys())
     maxLen=len(snpidmap[maxT])
     for pvalue in sorted(list(snpidmap.keys())):
-    
+
         sortedlist=sorted(snpidmap[pvalue])
         outputdata.append([str(pvalue)]+sortedlist+[""]*(maxLen-len(sortedlist)))
 
         # get the flag for each snp in the snp log
-        flaglist=[str(pvalue)+"_flag"]+[flagMap[snpid] for snpid in sortedlist]+[""]*(maxLen-len(sortedlist))
-        outputdata.append(flaglist)
-    discardlist=[snp for snp in flagMap.keys() if flagMap[snp]=="discard"]
-    outputdata.append(["Discard"]+discardlist+[""]*(maxLen-len(discardlist)))
+        if flagMap:
+            flaglist=[str(pvalue)+"_flag"]+[flagMap[snpid] for snpid in sortedlist]+[""]*(maxLen-len(sortedlist))
+            outputdata.append(flaglist)
+    if flagMap:
+        discardlist=[snp for snp in flagMap.keys() if flagMap[snp]=="discard"]
+        outputdata.append(["Discard"]+discardlist+[""]*(maxLen-len(discardlist)))
 
     try:
         with open(outputFile, "w") as f:
@@ -460,6 +462,7 @@ if __name__=="__main__":
         else:
             print("Generating genotype dosage without checking reference allele alignments")
             genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
+            flagMap=False
             if checkDup:
                 genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
                 genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
@@ -497,8 +500,9 @@ if __name__=="__main__":
             genotypeMax=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
 
         else:
-            print("Generating genotype dosage without checking strand alignments")
+            print("Generating genotype dosage without checking allele alignments")
             genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
+            flagMap=False
             if checkDup:
                 genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
                 genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
@@ -516,7 +520,7 @@ if __name__=="__main__":
         multiplied=genotypeRDD.map(lambda line:[call * oddsMap[line[0]] for call in line[1]])
         PRS=multiplied.reduce(lambda a,b: map(add, a, b))
         normalizedPRS=[x/totalcount for x in PRS]
-        return (totalcount,PRS)
+        return (totalcount,normalizedPRS)
 
     def calcAll(genotypeRDD, gwasRDD, thresholdlist, logsnp):
         prsMap={}
@@ -545,7 +549,10 @@ if __name__=="__main__":
 
     # log which SNPs are used in PRS
     if snp_log:
-        logoutput=writeSNPlog(snpids, snp_log, flagMap)
+        if flagMap:
+            logoutput=writeSNPlog(snpids, snp_log, flagMap)
+        else:
+            logoutput=writeSNPlog(snpids, snp_log)
     # generate labels for samples
     #if filetype.lower()=="vcf":
         #subjNames=genodata.filter(lambda line: "#CHROM" in line).map(lambda line: line.split(GENO_delim)[9::]).collect()[0]
