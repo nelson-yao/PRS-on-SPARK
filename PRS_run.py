@@ -435,6 +435,7 @@ if __name__=="__main__":
                 # checktable = [ geno_snpid, genoA1, genoA2, genoA1f, gwas_snpid, gwasA1, gwasA2, gwasA1f]
                 checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
                 if checkDup:
+                    print("Searching and removing duplicated SNPs")
                     flagList = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collect()  #  (snpid, flag)
                     flagMap = rmDup(flagList)
                 else:
@@ -449,6 +450,7 @@ if __name__=="__main__":
                 checktable=genoalleles.join(gwasalleles, genoalleles["Snpid_geno"]==gwasalleles["Snpid_gwas"], "inner").cache()
 
                 if checkDup:
+                    print("Searching and removing duplicated SNPs")
                     flagList = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collect()
                     flagMap = rmDup(flagList)
                 else:
@@ -464,6 +466,7 @@ if __name__=="__main__":
             genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
             flagMap=False
             if checkDup:
+                print("Searching and removing duplicated SNPs")
                 genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
                 genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
 
@@ -504,12 +507,13 @@ if __name__=="__main__":
             genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
             flagMap=False
             if checkDup:
+                print("Searching and removing duplicated SNPs")
                 genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
                 genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
 
     print("Dosage generated in {:f} seconds".format(time()-tic) )
     samplesize=int(len(genotypeMax.first()[1]))
-    print("Detected {} samples" .format(str(samplesize)))
+    print("Detected {} samples in genotype data" .format(str(samplesize)))
 
     #genoa1f.map(lambda line:"\t".join([line[0], "\t".join(line[1]), str(line[2])])).saveAsTextFile("../MOMS_info03_maf")
 
@@ -561,7 +565,7 @@ if __name__=="__main__":
     if sampleFilePath!="NOSAMPLE":
         # get sample name from the provided sample file
         subjNames=getSampleNames(sampleFilePath,sampleFileDelim,sampleFileID, skip=sample_skip)
-        print("Extracted {} sample labels".format(len(subjNames[0])))
+        #print("Extracted {} sample labels".format(len(subjNames[0]-1)))
         output=writePRS(prsDict,  outputPath, samplenames=subjNames)
     else:
         print("No sample file detected, generating labels for samples.")
