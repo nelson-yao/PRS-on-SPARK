@@ -107,10 +107,10 @@ def checkAlignmentDF(dataframe, bpMap):
                 flag="discard"
             else:
                 gwasA1F=float(gwasA1F)
-                genoA1Fdiff=genoA1F-0.5
-                gwasA1Fdiff=float(gwasA1F)-0.5
+                genoA1Fdiff=genoA1F*10-5
+                gwasA1Fdiff=float(gwasA1F)*10-5
                 # if the allele frequency in the GWAS or genotype is between 0.4 and 0.6, too close to decide, discard the SNP
-                if abs(genoA1Fdiff)<0.1 or abs(gwasA1Fdiff)<0.1:
+                if abs(genoA1Fdiff)<1 or abs(gwasA1Fdiff)<1:
                     flag="discard"
                 else:
                     if genoA1Fdiff * gwasA1Fdiff>0:
