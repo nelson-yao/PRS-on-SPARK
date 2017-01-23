@@ -92,12 +92,12 @@ def filterGWASByP_DF(GWASdf, pcolumn,  pHigh, oddscolumn,idcolumn, pLow=0, logOd
 # checking for reference allele alignment (i.e is the GWAS A1 the same as A1 in the genotype)
 def checkAlignmentDF(dataframe, bpMap):
     snpid=dataframe[0]
-    genoA1=dataframe[1]
-    genoA2=dataframe[2]
+    genoA1=dataframe[1].strip()
+    genoA2=dataframe[2].strip()
     genoA1F=dataframe[3]
     # no number 4 because the 5th column has the snpid from the GWAS
-    gwasA1=dataframe[5]
-    gwasA2=dataframe[6]
+    gwasA1=dataframe[5].strip()
+    gwasA2=dataframe[6].strip()
     gwasA1F=dataframe[7]
     if genoA1 in bpMap:
         if genoA1==genoA2 or gwasA1 == gwasA2:
@@ -135,10 +135,10 @@ def checkAlignmentDF(dataframe, bpMap):
 # check reference allele alignment without using A1F in the GWAS. Ambiguous SNPS are automatically discarded
 def checkAlignmentDFnoMAF(dataframe, bpMap):
     snpid=dataframe[0]
-    genoA1=dataframe[1]
-    genoA2=dataframe[2]
-    gwasA1=dataframe[4]
-    gwasA2=dataframe[5]
+    genoA1=dataframe[1].strip()
+    genoA2=dataframe[2].strip()
+    gwasA1=dataframe[4].strip()
+    gwasA2=dataframe[5].strip()
 
     if genoA1 in bpMap:
         if genoA2==bpMap[genoA1] or genoA1==genoA2:  # discard ambiguous case and the case where A1 = A2 in the genotype data
@@ -424,6 +424,7 @@ if __name__=="__main__":
 
         ## (snpid, [genotypes])
         genotable=genointermediate.map(lambda line: (line[geno_id], list(itertools.chain.from_iterable(line[5::])))).mapValues(lambda geno: [float(x) for x in geno])
+
         if check_ref:
             if use_maf:
                 print("Correcting strand alignment, using MAF")
@@ -519,7 +520,14 @@ if __name__=="__main__":
 
     # Calculate PRS at the sepcified thresholds
 
-    def calcPRSFromGeno(genotypeRDD, oddsMap):
+    def calcPRSFromGeno(genotypeRDD, oddsMap, threshold):
+
+        #totalcount=genotypeRDD.count()
+        #multiplied=genotypeRDD.map(lambda line:[call * oddsMap[line[0]] for call in line[1]])
+        #if threshold==1.0:
+        #    singlescore=genotypeRDD.map(lambda line:(line[0]+[call * oddsMap[line[0]] for call in line[1]]))
+        #    singlescore.saveAsTextFile("SingleScores")
+    #else:
         totalcount=genotypeRDD.count()
         multiplied=genotypeRDD.map(lambda line:[call * oddsMap[line[0]] for call in line[1]])
         PRS=multiplied.reduce(lambda a,b: map(add, a, b))
@@ -529,7 +537,6 @@ if __name__=="__main__":
     def calcAll(genotypeRDD, gwasRDD, thresholdlist, logsnp):
         prsMap={}
         thresholdNoMaxSorted=sorted(thresholdlist, reverse=True)
-
         thresholdmax=max(thresholdlist)
         idlog={}
         start=time()
@@ -544,7 +551,7 @@ if __name__=="__main__":
             if not filteredgenotype.isEmpty():
                 if logsnp:
                     idlog[threshold]=filteredgenotype.map(lambda line:line[0]).collect()
-                prsMap[threshold]=calcPRSFromGeno(filteredgenotype, gwasFilteredBC.value)
+                prsMap[threshold]=calcPRSFromGeno(filteredgenotype, gwasFilteredBC.value,threshold=threshold)
 
                 print("Finished calculating PRS at threshold of {}. Time spent : {:f} seconds".format(str(threshold), time()-checkpoint))
         return prsMap, idlog
@@ -565,7 +572,7 @@ if __name__=="__main__":
     if sampleFilePath!="NOSAMPLE":
         # get sample name from the provided sample file
         subjNames=getSampleNames(sampleFilePath,sampleFileDelim,sampleFileID, skip=sample_skip)
-        #print("Extracted {} sample labels".format(len(subjNames[0]-1)))
+
         output=writePRS(prsDict,  outputPath, samplenames=subjNames)
     else:
         print("No sample file detected, generating labels for samples.")
