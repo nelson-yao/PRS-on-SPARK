@@ -284,7 +284,7 @@ if __name__=="__main__":
 
     parser.add_argument("--log_or", action="store_true", default=False, dest="log_or", help="Adding this parameter tells the script to log the effect sizes provided in the GWAS")
 
-    parser.add_argument("--check_ref", action="store_true", default=False, dest="check_ref", help="Adding this option tells the script to theck reference allele when determining genoypte calls. Default is not checking")
+    parser.add_argument("--no_check_ref", action="store_false", default=True, dest="check_ref", help="Adding this option tells the script to theck reference allele when determining genoypte calls. Default is not checking")
 
     parser.add_argument("--app_name", action="store", default="PRS", dest="app_name", help="Give your spark application a name. Default is PRS.")
 
