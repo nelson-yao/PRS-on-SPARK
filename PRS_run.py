@@ -102,7 +102,7 @@ def checkAlignmentDF(dataframe, bpMap):
     if genoA1 in bpMap:
         if genoA1==genoA2 or gwasA1 == gwasA2:
             flag='discard'
-        elif genoA2==bpMap[genoA1] and gwasA2==bpMap[gwasA1]:  # checking ambiguous SNP in the genotype
+        elif genoA2==bpMap[genoA1] and (genoA1==bpMap[gwasA1] or genoA1==bpMap[gwasA2]) and (genoA2==bpMap[gwasA2] or genoA2==bpMap[gwasA1]):  # checking ambiguous SNP in the genotype
             if gwasA1F==".":
                 flag="discard"
             else:
@@ -427,7 +427,7 @@ if __name__=="__main__":
 
         if check_ref:
             if use_maf:
-                print("Correcting strand alignment, using MAF")
+                print("Determining strand alignment, using MAF")
                 genoA1f=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1], getA1f(line[2]))).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
 
                 # 'GwasA1F' means the allele of the A1 frequency in the GWAS
@@ -443,7 +443,7 @@ if __name__=="__main__":
                     flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
 
             else:
-                print("Correcting strand alignment, without using MAF")
+                print(" determining strand alignment, without using MAF")
                 genoalleles=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
 
                 gwasalleles=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
@@ -476,7 +476,7 @@ if __name__=="__main__":
         genotable=genodata.map(lambda line: line.split(GENO_delim)).filter(lambda line: line[geno_id] in gwasOddsMapMaxCA).map(lambda line: (line[geno_id], line[geno_start::])).mapValues(lambda geno: [float(call) for call in geno])
         if check_ref:
             if use_maf:
-                print("Correcting strand alignment, using MAF")
+                print(" determining strand alignment, using MAF")
                 genoA1f=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1], getA1f([float(x) for x in line[geno_start::]]))).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
                 gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1], line[gwas_a1f])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasA1f" ])
                 checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
@@ -487,7 +487,7 @@ if __name__=="__main__":
                 else:
                     flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
             else:
-                print("Correcting strand alignment, without using MAF")
+                print(" determining strand alignment, without using MAF")
                 genoalleles=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
                 gwasalleles=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a1+1])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
                 checktable=genoalleles.join(gwasalleles, genoalleles["Snpid_geno"]==gwasalleles["Snpid_gwas"], "inner").cache()
