@@ -102,7 +102,7 @@ def checkAlignmentDF(dataframe, bpMap):
     if genoA1 in bpMap:
         if genoA1==genoA2 or gwasA1 == gwasA2:
             flag='discard'
-        elif genoA2==bpMap[genoA1]:  # checking ambiguous SNP in the genotype
+        elif genoA2==bpMap[genoA1] and gwasA2==bpMap[gwasA1]:  # checking ambiguous SNP in the genotype
             if gwasA1F==".":
                 flag="discard"
             else:
@@ -182,7 +182,7 @@ def writePRS(prsResults, outputFile, samplenames=None, dialect=None):
     samplesize=len(onescore)
     if not samplenames:
         print("No sample names provided, generating sample names")
-        samplenames=["Label"]+["Sample"+str(i+1) for i in range(samplesize)]
+        samplenames=[["Label"]+["Sample"+str(i+1) for i in range(samplesize)]]
     labelnumber=len(samplenames[0])-1
     print("Collected {} sample labels".format(labelnumber))
     if labelnumber==samplesize:
@@ -396,7 +396,7 @@ if __name__=="__main__":
     print("Showing top 5 rows of GWAS file")
     gwastable.show(5)
 
-    print("System recognizes the following information in the GWAS :")
+    print("System recognizes the following information in the GWAS based on User inputs:")
     print("SNP ID : Column {}".format(gwas_id))
     print("P-values : Column {}".format(gwas_p))
     print("Effect size : Column {}".format(gwas_or))
@@ -420,7 +420,7 @@ if __name__=="__main__":
         print("Genotype data format : VCF ")
 
         # [chrom, bp, snpid, A1, A2, *genotype]
-        genointermediate=genodata.filter(lambda line: ("#" not in line)).map(lambda line: line.split(GENO_delim)).filter(lambda line: line[geno_id] in gwasOddsMapMaxCA).map(lambda line: line[0:5]+[chunk.split(":")[3] for chunk in line[geno_start::]]).map(lambda line: line[0:5]+[triplet.split(",") for triplet in line[5::]])
+        genointermediate=genodata.filter(lambda line: ("#" not in line)).map(lambda line: line.split(GENO_delim)).filter(lambda line: line[geno_id] in gwasOddsMapMaxCA).map(lambda line: line[0:5]+[chunk.strip('"').split(":")[3] for chunk in line[geno_start::]]).map(lambda line: line[0:5]+[triplet.split(",") for triplet in line[5::]])
 
         ## (snpid, [genotypes])
         genotable=genointermediate.map(lambda line: (line[geno_id], list(itertools.chain.from_iterable(line[5::])))).mapValues(lambda geno: [float(x) for x in geno])
@@ -575,7 +575,6 @@ if __name__=="__main__":
 
         output=writePRS(prsDict,  outputPath, samplenames=subjNames)
     else:
-        print("No sample file detected, generating labels for samples.")
         output=writePRS(prsDict,  outputPath, samplenames=None)
 
     sc.stop()
