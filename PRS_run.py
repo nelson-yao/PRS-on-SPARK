@@ -28,6 +28,14 @@ def getA1f(geno):
     A1F=sum(A1count)/(float(len(AA2))*2)
     return A1F
 
+def getCall(line):
+    AA=line[0::3]
+    AB=line[1::3]
+    BB=line[2::3]
+    calls=[x+y+z for x,y,z in zip(AA,AB,BB)]
+    calls=[int(round(x)) for x in calls]
+    return calls
+
 # Takes an array of triplets and convert to number of A1 alleles
 def makeGenotype(line):
     AA=line[0::3]
@@ -189,7 +197,8 @@ def writePRS(prsResults, outputFile, samplenames=None, dialect=None):
         outputdata=samplenames
         pvaluelist=sorted(list(prsResults.keys()))
         for pvalue in pvaluelist:
-            outputdata.append(["SNP_count_{}".format(pvalue)]+[prsResults[pvalue][0]]*samplesize)
+            snpcounts=[int(x) for x in prsResults[pvalue][0]]
+            outputdata.append(["SNP_count_{}".format(pvalue)]+snpcounts)
             outputdata.append(["PRS_{}".format(pvalue)]+prsResults[pvalue][1])
 
         try:
@@ -200,7 +209,7 @@ def writePRS(prsResults, outputFile, samplenames=None, dialect=None):
                 print("Successfully wrote scores to "+ os.path.basename(outputFile))
         except:
             e = sys.exc_info()[0]
-            print( "<p>Error: %s</p>" % e )
+            print( "Error: %s" % e )
             print("Data output was unsuccessful.")
             print("All is not lost, final results saved as binary format in file 'PRSOutput.pk'")
             with open(os.path.dirname(outputFile)+"/PRSOutput.pk", "wb") as f:
@@ -239,8 +248,8 @@ def writeSNPlog(snpidmap, outputFile, flagMap=None, dialect=None):
     except:
         e = sys.exc_info()[0]
         print( "<p>Error: %s</p>" % e )
-        print("Data output was unsuccessful.")
-        print("All is not lost, final results saved as binary format in file 'SNPlog.pk'")
+        print("SNP log output was unsuccessful.")
+        print("All is not lost, logs are saved as binary format in file 'SNPlog.pk'")
         with open(os.path.join(os.path.dirname(outputFile),"SNPlog.pk"), "wb") as f:
             pickle.dump(outputdata, f)
     return outputdata
@@ -267,12 +276,6 @@ if __name__=="__main__":
     parser.add_argument("--gwas_or", action="store", default=2, dest="gwas_or", type=int, help="Column number in your GWAS that contains odds-ratio/beta, with first column being 0, default is 2")
     parser.add_argument("--gwas_a1", action="store", default=3, dest="gwas_a1", type=int, help="Column number in your GWAS that contains allele A1, with first column being 0, default is 3. Allele A2 is assumed to be at column [gwas_a1+1]")
     parser.add_argument("--gwas_a1f", action="store", default=5, dest="gwas_a1f", type=int, help="Column number in your GWAS that contains frequency of A1, with first column being 0, default is 5.")
-
-    #parser.add_argument("--geno_id", action="store", default=2, dest="geno_id",type=int, help="Column number in your genotype files that contains SNP ID, with first column being 0, default is 2")
-    #parser.add_argument("--geno_start", action="store", default=9,dest="geno_start", type=int, help="Column number in your genotype files that contains the first genotype,  with first column being 0, default is 9.")
-    #parser.add_argument("--geno_a1", action="store", default=10, dest="geno_a1",type=int, help="Column number in your genotype files that contains SNP ID, with first column being 0, default is 10.")
-    #parser.add_argument("--GENO_delim", action="store", default="\t", dest="GENO_delim", help="Delimtier of the GWAS file, default is tab-delimiter ")
-
 
     parser.add_argument("--filetype", action="store",default="VCF", dest="filetype", help="The type of genotype file used as input , choose between VCF and GEN, default is VCF", choices=set(["VCF", "GEN"]))
 
@@ -301,6 +304,8 @@ if __name__=="__main__":
     parser.add_argument("--snp_log", action="store", default=None, dest="snp_log", help="Specify the path for a log file that records the SNPs that are used at each threshold. Default is no log")
 
     parser.add_argument("--check_dup", action="store_true", default=False, dest="checkdup", help="Add this flag if you want to check for and discard SNPs that are duplicated, which will take extra time. By default, the script will assume there is no duplicate SNPs. You can use clean.py to remove duplicated SNPs in your data ")
+
+    parser.add_argument("--hardcall", action="store_true", default=False, dest="hardcall", help="Add this flag if your data is in hard call format. By default, the script assumes the data is supplied is imputed and that there is no missing calls. If using hard call data, some SNPs might have missing calls that needs to be accounted for")
 
     results=parser.parse_args()
 
@@ -355,14 +360,17 @@ if __name__=="__main__":
 
     # Sepcify whether to check for duplicate SNPs
     checkDup= results.checkdup
-
+    hardcallflag=results.hardcall
 
     # get the name of the genotype files
     genoFileNamePattern=results.GENO
 
+
     # get the whole list of the file names
     genoFileNames=glob.glob(genoFileNamePattern)
 
+    ## Start timing:
+    totalstart=time()
     ##  start spark context
     APP_NAME=results.app_name
 
@@ -519,22 +527,25 @@ if __name__=="__main__":
     #genoa1f.map(lambda line:"\t".join([line[0], "\t".join(line[1]), str(line[2])])).saveAsTextFile("../MOMS_info03_maf")
 
     # Calculate PRS at the sepcified thresholds
+    if flagMap:
+      genocalltable=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).mapValues(lambda geno: getCall(geno))
+    else:
+      genocalltable=genotable.mapValues(lambda geno: getCall(geno))
 
-    def calcPRSFromGeno(genotypeRDD, oddsMap, threshold):
+    assert len(genocalltable.first()[1])==samplesize, "Bug found, size of genotype and call table differ"
 
-        #totalcount=genotypeRDD.count()
-        #multiplied=genotypeRDD.map(lambda line:[call * oddsMap[line[0]] for call in line[1]])
-        #if threshold==1.0:
-        #    singlescore=genotypeRDD.map(lambda line:(line[0]+[call * oddsMap[line[0]] for call in line[1]]))
-        #    singlescore.saveAsTextFile("SingleScores")
-    #else:
-        totalcount=genotypeRDD.count()
+
+
+    def calcPRSFromGeno(genotypeRDD, oddsMap, samplenum,calltable=False):
+        assert calltable, "**** No call table found ***** "
+        totalcount=calltable.map(lambda line: line[1]).reduce(lambda a,b: map(add, a, b))
         multiplied=genotypeRDD.map(lambda line:[call * oddsMap[line[0]] for call in line[1]])
         PRS=multiplied.reduce(lambda a,b: map(add, a, b))
-        normalizedPRS=[x/totalcount for x in PRS]
+        normalizedPRS=[x/count if count != 0 else x for x, count in zip(PRS, totalcount)]
         return (totalcount,normalizedPRS)
 
-    def calcAll(genotypeRDD, gwasRDD, thresholdlist, logsnp):
+    def calcAll(genotypeRDD, gwasRDD, thresholdlist, logsnp, samplenum,calltableRDD=False):
+        print("\nStart Calculating PRS at each threshold")
         prsMap={}
         thresholdNoMaxSorted=sorted(thresholdlist, reverse=True)
         thresholdmax=max(thresholdlist)
@@ -547,16 +558,22 @@ if __name__=="__main__":
             print("Filtered GWAS at threshold of {}. Time spent : {:f} seconds".format(str(threshold), time()-tic))
             checkpoint=time()
             filteredgenotype=genotypeRDD.filter(lambda line: line[0] in gwasFilteredBC.value)
-
+            assert calltableRDD, "Error, calltable must be provided"
+            filteredcalltable=calltableRDD.filter(lambda line: line[0] in gwasFilteredBC.value )
             if not filteredgenotype.isEmpty():
-                if logsnp:
-                    idlog[threshold]=filteredgenotype.map(lambda line:line[0]).collect()
-                prsMap[threshold]=calcPRSFromGeno(filteredgenotype, gwasFilteredBC.value,threshold=threshold)
+              assert filteredcalltable.count()==filteredgenotype.count(), "Error, calltable have different size from genotype"
+              if logsnp:
+                idlog[threshold]=filteredgenotype.map(lambda line:line[0]).collect()
 
-                print("Finished calculating PRS at threshold of {}. Time spent : {:f} seconds".format(str(threshold), time()-checkpoint))
+              prsMap[threshold]=calcPRSFromGeno(filteredgenotype, gwasFilteredBC.value,samplenum=samplenum, calltable=filteredcalltable)
+
+              print("Finished calculating PRS at threshold of {}. Time spent : {:f} seconds".format(str(threshold), time()-checkpoint))
+
+            else:
+              print("No snps left at threshold {}" .format(threshold))
         return prsMap, idlog
 
-    prsDict, snpids=calcAll(genotypeMax,gwastable, thresholds, logsnp=snp_log)
+    prsDict, snpids=calcAll(genotypeMax,gwastable, thresholds, logsnp=snp_log, samplenum=samplesize,calltableRDD=genocalltable)
 
     # log which SNPs are used in PRS
     if snp_log:
@@ -564,6 +581,7 @@ if __name__=="__main__":
             logoutput=writeSNPlog(snpids, snp_log, flagMap)
         else:
             logoutput=writeSNPlog(snpids, snp_log)
+
     # generate labels for samples
     #if filetype.lower()=="vcf":
         #subjNames=genodata.filter(lambda line: "#CHROM" in line).map(lambda line: line.split(GENO_delim)[9::]).collect()[0]
@@ -578,3 +596,4 @@ if __name__=="__main__":
         output=writePRS(prsDict,  outputPath, samplenames=None)
 
     sc.stop()
+    print("Total Operation Time: {:.2f} seconds\n" .format(time()-totalstart))
