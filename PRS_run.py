@@ -561,7 +561,7 @@ if __name__=="__main__":
             assert calltableRDD, "Error, calltable must be provided"
             filteredcalltable=calltableRDD.filter(lambda line: line[0] in gwasFilteredBC.value )
             if not filteredgenotype.isEmpty():
-              assert filteredcalltable.count()==filteredgenotype.count(), "Error, calltable have different size from genotype"
+              #assert filteredcalltable.count()==filteredgenotype.count(), "Error, calltable have different size from genotype"
               if logsnp:
                 idlog[threshold]=filteredgenotype.map(lambda line:line[0]).collect()
 
@@ -596,4 +596,7 @@ if __name__=="__main__":
         output=writePRS(prsDict,  outputPath, samplenames=None)
 
     sc.stop()
-    print("Total Operation Time: {:.2f} seconds\n" .format(time()-totalstart))
+    seconds=time()-totalstart
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    print("Total Calculation Time: {:d}:{:02d}:{:02d}".format(h, m, s))
