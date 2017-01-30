@@ -599,4 +599,4 @@ if __name__=="__main__":
     seconds=time()-totalstart
     m, s = divmod(seconds, 60)
     h, m = divmod(m, 60)
-    print("Total Calculation Time (h:m:s): {:d}:{:02d}:{:02d} ".format(int(h), int(m), int(round(s))))
+    print("Total Calculation Time : {:d} hrs {:02d} min {:02d} sec".format(int(h), int(m), int(round(s))))
