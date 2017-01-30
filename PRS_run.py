@@ -528,7 +528,7 @@ if __name__=="__main__":
 
     # Calculate PRS at the sepcified thresholds
     if flagMap:
-      genocalltable=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).mapValues(lambda geno: getCall(geno))
+      genocalltable=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).mapValues(lambda geno: getCall(geno)).cache()
     else:
       genocalltable=genotable.mapValues(lambda geno: getCall(geno))
 
