@@ -169,11 +169,13 @@ def getSampleNames(sampleFileName, sampleDelim, sampleIDCol, skip=0):
     labels=[]
     with open(sampleFileName, "r") as f:
         subjList=[item.split(sampleDelim) for item in f.read().splitlines()]
-        for i in range(len(sampleIDCol)):
+        counter=1
+        for i in sampleIDCol:
             subjNames=[x[i] for x in subjList[skip::]]
             subjNames=[name.strip('"') for name in subjNames]
-            column=["Label"+str(i)]+subjNames
+            column=["Label "+str(counter)]+subjNames
             labels.append(column)
+            counter+=1
     return labels
 
 # remove duplicates from flag list
@@ -247,7 +249,7 @@ def writeSNPlog(snpidmap, outputFile, flagMap=None, dialect=None):
             print("Successfully output log to "+ os.path.basename(outputFile))
     except:
         e = sys.exc_info()[0]
-        print( "<p>Error: %s</p>" % e )
+        print( "Error: %s" % e )
         print("SNP log output was unsuccessful.")
         print("All is not lost, logs are saved as binary format in file 'SNPlog.pk'")
         with open(os.path.join(os.path.dirname(outputFile),"SNPlog.pk"), "wb") as f:
@@ -528,7 +530,7 @@ if __name__=="__main__":
 
     # Calculate PRS at the sepcified thresholds
     if flagMap:
-      genocalltable=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).mapValues(lambda geno: getCall(geno))
+      genocalltable=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).mapValues(lambda geno: getCall(geno)).cache()
     else:
       genocalltable=genotable.mapValues(lambda geno: getCall(geno))
 
@@ -599,4 +601,4 @@ if __name__=="__main__":
     seconds=time()-totalstart
     m, s = divmod(seconds, 60)
     h, m = divmod(m, 60)
-    print("Total Calculation Time (h:m:s): {:d}:{:02d}:{:02d} ".format(int(h), int(m), int(round(s))))
+    print("Total Calculation Time : {:d} hrs {:02d} min {:02d} sec".format(int(h), int(m), int(round(s))))
