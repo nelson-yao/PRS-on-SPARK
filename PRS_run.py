@@ -178,7 +178,7 @@ def getSampleNames(sampleFileName, sampleDelim, sampleIDCol, skip=0):
         for i in sampleIDCol:
             subjNames=[x[i] for x in subjList[skip::]]
             subjNames=[name.strip('"') for name in subjNames]
-            column=["Label "+str(counter)]+subjNames
+            column=["Label-"+str(counter)]+subjNames
             labels.append(column)
             counter+=1
     return labels
