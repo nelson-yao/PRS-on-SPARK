@@ -107,7 +107,7 @@ def checkAlignmentDF(dataframe, bpMap):
     gwasA1=dataframe[5].strip()
     gwasA2=dataframe[6].strip()
     gwasA1Fstring=dataframe[7].strip()
-    if re.compile(r'[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?$').match(gwasA1Freq):
+    if re.compile(r'[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?$').match(gwasA1Fstring):
         gwasA1F=float(gwasA1Fstring)
     else:
         gwasA1F="NO"
