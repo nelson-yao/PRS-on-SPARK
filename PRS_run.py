@@ -460,7 +460,7 @@ if __name__=="__main__":
                     flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
 
             else:
-                print(" determining strand alignment, without using MAF")
+                print(" determining strand alignment, without using MAF. SNPs with Alleles that are reverse compliments will be discarded")
                 genoalleles=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
 
                 gwasalleles=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
@@ -493,7 +493,7 @@ if __name__=="__main__":
         genotable=genodata.map(lambda line: line.split(GENO_delim)).filter(lambda line: line[geno_id] in gwasOddsMapMaxCA).map(lambda line: (line[geno_id], line[geno_start::])).mapValues(lambda geno: [float(call) for call in geno])
         if check_ref:
             if use_maf:
-                print(" determining strand alignment, using MAF")
+                print("Determining strand alignment, using MAF")
                 genoA1f=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1], getA1f([float(x) for x in line[geno_start::]]))).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
                 gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2], line[gwas_a1f])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasA1f" ])
                 checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
@@ -504,7 +504,7 @@ if __name__=="__main__":
                 else:
                     flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
             else:
-                print(" determining strand alignment, without using MAF")
+                print(" determining strand alignment, without using MAF. SNPs with Alleles that are reverse compliments will be discarded")
                 genoalleles=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
                 gwasalleles=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
                 checktable=genoalleles.join(gwasalleles, genoalleles["Snpid_geno"]==gwasalleles["Snpid_gwas"], "inner").cache()
@@ -564,7 +564,7 @@ if __name__=="__main__":
             tic=time()
             gwasFilteredBC=sc.broadcast(filterGWASByP_DF(GWASdf=gwasRDD, pcolumn=gwas_p, idcolumn=gwas_id, oddscolumn=gwas_or, pHigh=threshold, logOdds=log_or))
             #gwasFiltered=spark.sql("SELECT snpid, gwas_or_float FROM gwastable WHERE gwas_p_float < {:f}".format(threshold)
-            print("Filtered GWAS at threshold of {}. Time spent : {:f} seconds".format(str(threshold), time()-tic))
+            print("Filtered GWAS at threshold of {}. Time spent : {:.1f} seconds".format(str(threshold), time()-tic))
             checkpoint=time()
             filteredgenotype=genotypeRDD.filter(lambda line: line[0] in gwasFilteredBC.value)
             assert calltableRDD, "Error, calltable must be provided"
