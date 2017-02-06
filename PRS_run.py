@@ -19,6 +19,12 @@ from time import time
 import argparse
 
 
+# packages for the regression
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn import linear_model
+
+
 # Takes a line in the genotype file and return the frequency of A1 allele
 def getA1f(geno):
     AA=geno[0::3]
@@ -262,6 +268,20 @@ def writeSNPlog(snpidmap, outputFile, flagMap=None, dialect=None):
     return outputdata
 
 
+def regressplot(phenoFile, sampleDelim, sampleIDCol, skip=0):
+    labels=[]s
+    with open(sampleFileName, "r") as f:
+        subjList=[item.split(sampleDelim) for item in f.read().splitlines()]
+        counter=1
+        for i in sampleIDCol:
+            subjNames=[x[i] for x in subjList[skip::]]
+            subjNames=[name.strip('"') for name in subjNames]
+            column=["Label-"+str(counter)]+subjNames
+            labels.append(column)
+            counter+=1
+    return labels
+
+
 
 if __name__=="__main__":
     import pyspark
@@ -272,7 +292,7 @@ if __name__=="__main__":
     from pyspark import SparkConf, SparkContext
     # ATTN: python index starts at 0, so if you want to specify the second column, use 1
     # define column number for contents in GWAS
-    parser = argparse.ArgumentParser(description='PRS Script Parameters')
+    parser = argparse.ArgumentParser(description='PRS Script Parameters', version='1.7')
     # Mandatory positional arguments
     parser.add_argument("GENO", action="store", help="Name of the Genotype files, can be a name or path, or name patterns with wildcard character ")
     parser.add_argument("GWAS", action="store", help="Name of the GWAS file, can be a name or path.")
@@ -312,9 +332,16 @@ if __name__=="__main__":
 
     parser.add_argument("--check_dup", action="store_true", default=False, dest="checkdup", help="Add this flag if you want to check for and discard SNPs that are duplicated, which will take extra time. By default, the script will assume there is no duplicate SNPs. You can use clean.py to remove duplicated SNPs in your data ")
 
-    parser.add_argument("--hardcall", action="store_true", default=False, dest="hardcall", help="Add this flag if your data is in hard call format. By default, the script assumes the data is supplied is imputed and that there is no missing calls. If using hard call data, some SNPs might have missing calls that needs to be accounted for")
+    parser.add_argument("--check_dup", action="store_true", default=False, dest="checkdup", help="Add this flag if you want to check for and discard SNPs that are duplicated, which will take extra time. By default, the script will assume there is no duplicate SNPs. You can use clean.py to remove duplicated SNPs in your data ")
 
-    results=parser.parse_args()
+    results=parser.parse_args("--pheno_file", action="store", default=None, dest="pheno_file", help="Sepcify the path to the data file for the phenotype. It is assumed that the phenotype data is organized in the same order as the samples in the genoytpe file.")
+
+    parser.add_argument("--pheno_columns", action="store", default=[0], type=int, nargs="+", dest="pheno_columns", help="Specify which columns that the phenotype data is in the provided phenotype data file. Multiple column numbers can be specified to conduct regression with multiple phenotypes. Default is the first column.")
+
+    results=parser.parse_args("--pheno_delim", action="store", default=",", dest="pheno_delim", help="Specify the delimiter for the phenotype data file. Default is comma")
+
+    results=parser.parse_args("--pheno_no_header", action="store_true", default=False, dest="pheno_no_header", type=int,  help="Sepcify whether the phenotype has a header row")
+
 
     # type of files, VCF or GEN
     filetype=results.filetype
@@ -377,6 +404,15 @@ if __name__=="__main__":
     # get the whole list of the file names
     genoFileNames=glob.glob(genoFileNamePattern)
 
+    # parameter for phenotype regression
+    pheno_file=results.pheno_file
+    pheno_columns=results.pheno_columns
+    pheno_delim=results.pheno_delim
+    pheno_no_header=results.pheno_no_header
+
+
+
+    '''start spark '''
     ## Start timing:
     totalstart=time()
     ##  start spark context
