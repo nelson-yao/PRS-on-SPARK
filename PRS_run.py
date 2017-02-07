@@ -334,6 +334,8 @@ if __name__=="__main__":
 
     parser.add_argument("--thresholds", action="store", default=[0.5, 0.2, 0.1, 0.05, 0.01, 0.001, 0.0001], dest="thresholds", help="The p-value thresholds that controls which SNPs are used from the GWAS. Specifying the p-values simply by input one after another. default is [0.5, 0.2, 0.1, 0.05, 0.01, 0.001, 0.0001]", nargs="+", type=float)
 
+    parser.add_argument("--threshold_seq", action="store", default=None, dest="threshold_seq", help="Defines a sequence that contains all the p-value thresholds that controls which SNPs are used from the GWAS. Input is three numbers separted by space: lower bound, upper bound, step size. Default is None. Defining a sequence automatically overwrites the threshold list defined under --thresholds", nargs="+", type=float)
+
     parser.add_argument("--GWAS_delim", action="store", default="\t", dest="GWAS_delim", help="Delimtier of the GWAS file, default is tab-delimiter ")
 
     parser.add_argument("--GWAS_no_header", action="store_false", default=True, dest="GWAS_header", help="Adding this parameter signals that there is no headers for the GWAS. The default is to assume that GWAS has column names")
@@ -396,6 +398,17 @@ if __name__=="__main__":
         GENO_delim= " "
     # List of thresholds:
     thresholds=results.thresholds
+    threshold_seq=results.threshold_seq
+    if threshold_seq is not None:
+        if len(threshold_seq)==3:
+            lower=min(threshold_seq[0:2])
+            upper=max(threshold_seq[0:2])
+            step=threshold_seq[2]
+            thresholds=np.arange(lower, upper, step).tolist()
+        else:
+            print("Invalid input for threshold sequence parameters")
+
+
     # file delimiters:
     GWAS_delim=results.GWAS_delim
 
