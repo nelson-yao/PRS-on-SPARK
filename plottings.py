@@ -6,7 +6,6 @@ This file holds the plotting components for the PRS_on_Spark
 """
 
 import matplotlib.pyplot as plt
-from astropy.units import count
 from matplotlib import cm
 import matplotlib as mpl
 import math
@@ -19,12 +18,38 @@ import math
 
 def r_square_plots(pheno,rs,p_for_rs, p_values,width = 2,bar_width = 0.01):
     n_plot = len(pheno)
+    row = 0
+    if n_plot%width == 0 :
+        row = n_plot/width
+    else:
+        row = n_plot/width+1
+    p_w = 0.9
+    f_h = 0.8
+    h_sp = 0.1
+    sp = 0.05
+    l = 0.05
+    b = 0.05
+    s_p_h = (f_h - (row-1)*h_sp)/row
+    s_p_w = (p_w -(width-1)*sp)/width
+    
     fig = plt.figure()
     axs = []
-    print n_plot/width+1
-    for i in range(n_plot):
-        axs.append(fig.add_subplot(math.ceil(float(n_plot)/width+1),width, (i%width)+1))
-    axs.append(fig.add_subplot(n_plot/width+1,1,n_plot%width))
+
+    
+    n_p = 0
+    for i in range(row-1,-1,-1):
+        for j in range(width):
+            if n_p < n_plot: 
+                axs.append(fig.add_axes([l+j*(s_p_w+sp), b+i*s_p_h+i*h_sp, s_p_w, s_p_h, ]))
+                n_p+=1
+    #axs.append(fig.add_axes([l+s_p_w+sp, b+s_p_h+h_sp, s_p_w, s_p_h, ]))
+    #axs.append(fig.add_axes([l, b, s_p_w, s_p_h, ]))
+   # axs.append(fig.add_axes([l+s_p_w+sp, b, s_p_w, s_p_h, ]))
+    axs.append(fig.add_axes([l, 0.95, p_w, 0.05, ]))
+    
+    #for i in range(n_plot):
+    #    axs.append(fig.add_subplot(math.ceil(float(n_plot)/width+1),width, (i%width)+1))
+    #axs.append(fig.add_subplot(n_plot/width+1,1,n_plot%width))
     counter = 0
     anno = '%1.2f'
     for i in range(n_plot):
@@ -54,15 +79,6 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,width = 2,bar_width = 0.01):
 
 
     
-    
-    
-    
-    
-    
-
-
-
-    
 """
 @author: zhuyuecai
 @note: helper function, used in other functions
@@ -79,11 +95,11 @@ def _get_max_positions_(rs):
 
 if __name__ == '__main__':
     import numpy as np
-    pheno = ['t1','t2','t3']
-    prs = [[1,2,5,4,1,8,2],[6,7,5,4,1,8,2],[6,7,5,4,1,8,2]]
-    p_rs = [np.linspace(0,1,7),np.linspace(0,1,7),np.linspace(0,1,7)]
+    pheno = ['t1','t2','t3','t1','t2','t3']
+    prs = [[1,2,5,4,1,8,2],[6,7,5,4,1,8,2],[6,7,5,4,1,8,2],[1,2,5,4,1,8,2],[6,7,5,4,1,8,2],[6,7,5,4,1,8,2]]
+    p_rs = [np.linspace(0,1,7),np.linspace(0,1,7),np.linspace(0,1,7),np.linspace(0,1,7),np.linspace(0,1,7),np.linspace(0,1,7)]
     ps = np.linspace(0,1,7)
-    r_square_plots(pheno,prs,p_rs,ps)
+    r_square_plots(pheno,prs,p_rs,ps,width=2)
     
     
     
