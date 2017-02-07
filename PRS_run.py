@@ -22,7 +22,9 @@ import argparse
 # packages for the regression
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn import linear_model
+import pandas as pd
+import statsmodels.api as sm
+from plottings import *
 
 
 # Takes a line in the genotype file and return the frequency of A1 allele
@@ -199,6 +201,7 @@ def rmDup(checkList):
 # and a list of pvalues that are in the order of the scores from each p-value
 
 def writePRS(prsResults, outputFile, samplenames=None, dialect=None):
+    scorefile=outputFile+".score"
     onescore=list(prsResults.values())[0][1]
     samplesize=len(onescore)
     if not samplenames:
@@ -215,17 +218,17 @@ def writePRS(prsResults, outputFile, samplenames=None, dialect=None):
             outputdata.append(["PRS_{}".format(pvalue)]+prsResults[pvalue][1])
 
         try:
-            with open(outputFile, "w") as f:
+            with open(scorefile, "w") as f:
                 csvwriter=csv.writer(f, dialect=dialect)
                 for row in zip(*outputdata):
                     csvwriter.writerow(row)
-                print("Successfully wrote scores to "+ os.path.basename(outputFile))
+                print("Successfully wrote scores to "+ os.path.basename(scorefile))
         except:
             e = sys.exc_info()[0]
             print( "Error: %s" % e )
             print("Data output was unsuccessful.")
             print("All is not lost, final results saved as binary format in file 'PRSOutput.pk'")
-            with open(os.path.dirname(outputFile)+"/PRSOutput.pk", "wb") as f:
+            with open(os.path.dirname(scorefile)+"/PRSOutput.pk", "wb") as f:
                 pickle.dump(outputdata, f)
     else:
         print("Unequal number of labels extracted from sample sheet and number of samples detected in the genotype data, saving results to PRSOutput.pk")
@@ -236,6 +239,7 @@ def writePRS(prsResults, outputFile, samplenames=None, dialect=None):
     return outputdata
 
 def writeSNPlog(snpidmap, outputFile, flagMap=None, dialect=None):
+    snplogfile=outputFile+".snplog"
     outputdata=[]
     maxT=max(snpidmap.keys())
     maxLen=len(snpidmap[maxT])
@@ -253,34 +257,55 @@ def writeSNPlog(snpidmap, outputFile, flagMap=None, dialect=None):
         outputdata.append(["Discard"]+discardlist+[""]*(maxLen-len(discardlist)))
 
     try:
-        with open(outputFile, "w") as f:
+        with open(snplogfile, "w") as f:
             csvwriter=csv.writer(f, dialect=dialect)
             for row in zip(*outputdata):
                 csvwriter.writerow(row)
-            print("Successfully output log to "+ os.path.basename(outputFile))
+            print("Successfully output log to "+ os.path.basename(snplogfile))
     except:
         e = sys.exc_info()[0]
         print( "Error: %s" % e )
         print("SNP log output was unsuccessful.")
         print("All is not lost, logs are saved as binary format in file 'SNPlog.pk'")
-        with open(os.path.join(os.path.dirname(outputFile),"SNPlog.pk"), "wb") as f:
+        with open(os.path.join(os.path.dirname(snplogfile),"SNPlog.pk"), "wb") as f:
             pickle.dump(outputdata, f)
     return outputdata
 
 
-def regressplot(phenoFile, sampleDelim, sampleIDCol, skip=0):
-    labels=[]s
-    with open(sampleFileName, "r") as f:
-        subjList=[item.split(sampleDelim) for item in f.read().splitlines()]
-        counter=1
-        for i in sampleIDCol:
-            subjNames=[x[i] for x in subjList[skip::]]
-            subjNames=[name.strip('"') for name in subjNames]
-            column=["Label-"+str(counter)]+subjNames
-            labels.append(column)
-            counter+=1
-    return labels
+def regression(scoreMap,phenoFile, phenoDelim, phenoColumns, phenoNoHeader, skip=0):
+    samplesize=len(scoreMap[list(scoreMap.keys())[0]][1])
 
+    if phenoNoHeader:
+        header=None
+    else:
+        header=0
+    pvalueList=sorted(list(scoreMap.keys()))
+    prsData=pd.DataFrame({pvalue:scoreMap[pvalue][1] for pvalue in pvalueList})
+    phenodata=pd.read_table(phenoFile, header=header, sep=phenoDelim)
+
+    assert samplesize==phenodata.shape[0], "Unequal sample size in pheno file and PRS data"
+    phenotypes=[]
+    thresholds=pvalueList
+    r2All=[]
+    pAll=[]
+    for columnNumber in phenoColumns:
+        phenotypes.append(phenodata.columns[columnNumber])
+        pheno=phenodata.iloc[:,columnNumber]
+        regressdata=pd.concat([pheno, prsData], axis=1)
+        regressdataClean=regressdata.dropna(axis=0)
+        plist=[]
+        r2list=[]
+        for pvalue in thresholds:
+            X=regressdataClean[pvalue].values
+            Y=regressdataClean.iloc[:,0].values
+            Xconst=sm.add_constant(X)
+            lm = sm.OLS(Y,Xconst).fit()
+            plist.append(lm.pvalues[1])
+            r2list.append(lm.rsquared)
+        pAll.append(plist)
+        r2All.append(r2list)
+
+    return phenotypes, thresholds, r2All, pAll
 
 
 if __name__=="__main__":
@@ -296,7 +321,8 @@ if __name__=="__main__":
     # Mandatory positional arguments
     parser.add_argument("GENO", action="store", help="Name of the Genotype files, can be a name or path, or name patterns with wildcard character ")
     parser.add_argument("GWAS", action="store", help="Name of the GWAS file, can be a name or path.")
-    parser.add_argument("Output", action="store", help="The path and name for the output file")
+    parser.add_argument("Output", action="store", help="The path and name stem for the output files. One name will be used for the score output, the snp log and the regression output. This is similar to the --out flag in pLink")
+
     # Optional arguments
     parser.add_argument("--gwas_id", action="store", default=0, dest="gwas_id",type=int, help="Column number in your GWAS that contains SNP ID, with first column being 0, default is 0")
     parser.add_argument("--gwas_p", action="store", default=1, dest="gwas_p", type=int, help="Column number in your GWAS that contains p-value, with first column being 0, default is 1")
@@ -328,21 +354,22 @@ if __name__=="__main__":
 
     parser.add_argument("--no_maf", action="store_false", default=True, dest="use_maf", help="By default, the pipeline calculated the allele frequency in the genotype population. Use this flag to tell the script NOT to calculate MAF in the provided propulation and compare it with MAF in the GWAS, e.g, when the GWAS does not provide information for allele frequencies. MAF is needed to check the reference alleles of ambiguous SNPs (those whose A1 and A2 are reverese complements).  Not using this will result in ambiguous SNPs be discarded.")
 
-    parser.add_argument("--snp_log", action="store", default=None, dest="snp_log", help="Specify the path for a log file that records the SNPs that are used at each threshold. Default is no log")
+    parser.add_argument("--snp_log", action="store_true", default=False, dest="snp_log", help="Specify whether to write the IDs of the SNPs for each scores and how they were processed. If added, the SNP ids will be saved to a file with the name specified in the Output flag, with .snplog as suffix")
 
-    parser.add_argument("--check_dup", action="store_true", default=False, dest="checkdup", help="Add this flag if you want to check for and discard SNPs that are duplicated, which will take extra time. By default, the script will assume there is no duplicate SNPs. You can use clean.py to remove duplicated SNPs in your data ")
+    parser.add_argument("--check_dup", action="store_true", default=False, dest="checkdup", help="Add this flag if you want to check for and discard SNPs that are duplicated, which will take extra time. By default, the script will assume there is no duplicate SNPs.")
 
-    parser.add_argument("--check_dup", action="store_true", default=False, dest="checkdup", help="Add this flag if you want to check for and discard SNPs that are duplicated, which will take extra time. By default, the script will assume there is no duplicate SNPs. You can use clean.py to remove duplicated SNPs in your data ")
 
-    results=parser.parse_args("--pheno_file", action="store", default=None, dest="pheno_file", help="Sepcify the path to the data file for the phenotype. It is assumed that the phenotype data is organized in the same order as the samples in the genoytpe file.")
+    parser.add_argument("--pheno_file", action="store", default=None, dest="pheno_file", help="Sepcify the path to the data file for the phenotype. It is assumed that the phenotype data is organized in the same order as the samples in the genoytpe file.")
 
     parser.add_argument("--pheno_columns", action="store", default=[0], type=int, nargs="+", dest="pheno_columns", help="Specify which columns that the phenotype data is in the provided phenotype data file. Multiple column numbers can be specified to conduct regression with multiple phenotypes. Default is the first column.")
 
-    results=parser.parse_args("--pheno_delim", action="store", default=",", dest="pheno_delim", help="Specify the delimiter for the phenotype data file. Default is comma")
+    parser.add_argument("--pheno_delim", action="store", default=",", dest="pheno_delim", help="Specify the delimiter for the phenotype data file. Default is comma")
 
-    results=parser.parse_args("--pheno_no_header", action="store_true", default=False, dest="pheno_no_header", type=int,  help="Sepcify whether the phenotype has a header row")
+    parser.add_argument("--pheno_no_header", action="store_true", default=False, dest="pheno_no_header",  help="Sepcify whether the phenotype has a header row")
 
 
+
+    results=parser.parse_args()
     # type of files, VCF or GEN
     filetype=results.filetype
 
@@ -382,7 +409,7 @@ if __name__=="__main__":
     # programme parameter
     log_or=results.log_or  # sepcify whether you want to log your odds ratios
     check_ref=results.check_ref # if you know that there are mismatch between the top strand in the genotypes and that of the GWAS, set True. Not checking the reference allele will improve the speed
-    use_maf=results.use_maf   # wheather to use MAF to check reference allele
+    use_maf=results.use_maf   # whether to use MAF to check reference allele
 
     # sample file path and name
     sampleFilePath=results.sample_file # include the full/relative path and name of the sample file
@@ -394,8 +421,8 @@ if __name__=="__main__":
     outputPath=results.Output
 
     # Sepcify whether to check for duplicate SNPs
-    checkDup= results.checkdup
-    hardcallflag=results.hardcall
+    checkDup=results.checkdup
+
 
     # get the name of the genotype files
     genoFileNamePattern=results.GENO
@@ -412,7 +439,7 @@ if __name__=="__main__":
 
 
 
-    '''start spark '''
+    ''' ####  start spark   ##### '''
     ## Start timing:
     totalstart=time()
     ##  start spark context
@@ -565,7 +592,7 @@ if __name__=="__main__":
                 genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
                 genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
 
-    print("Dosage generated in {:f} seconds".format(time()-tic) )
+    print("Dosage generated in {:.1f} seconds".format(time()-tic) )
     samplesize=int(len(genotypeMax.first()[1]))
     print("Detected {} samples in genotype data" .format(str(samplesize)))
 
@@ -612,7 +639,7 @@ if __name__=="__main__":
 
               prsMap[threshold]=calcPRSFromGeno(filteredgenotype, gwasFilteredBC.value,samplenum=samplenum, calltable=filteredcalltable)
 
-              print("Finished calculating PRS at threshold of {}. Time spent : {:f} seconds".format(str(threshold), time()-checkpoint))
+              print("Finished calculating PRS at threshold of {}. Time spent : {:.1f} seconds".format(str(threshold), time()-checkpoint))
 
             else:
               print("No snps left at threshold {}" .format(threshold))
@@ -623,9 +650,9 @@ if __name__=="__main__":
     # log which SNPs are used in PRS
     if snp_log:
         if flagMap:
-            logoutput=writeSNPlog(snpids, snp_log, flagMap)
+            logoutput=writeSNPlog(snpids, outputPath, flagMap)
         else:
-            logoutput=writeSNPlog(snpids, snp_log)
+            logoutput=writeSNPlog(snpids, outputPath)
 
     # generate labels for samples
     #if filetype.lower()=="vcf":
@@ -639,6 +666,11 @@ if __name__=="__main__":
         output=writePRS(prsDict,  outputPath, samplenames=subjNames)
     else:
         output=writePRS(prsDict,  outputPath, samplenames=None)
+
+
+    if pheno_file is not None:
+        phenotypes, thresholds, r2All, pAll=regression(prsDict,pheno_file, pheno_delim, pheno_columns, pheno_no_header)
+        r_square_plots(phenotypes,r2All,pAll, thresholds, outputName=outputPath, width = 2,bar_width = 0.01)
 
     sc.stop()
     seconds=time()-totalstart
