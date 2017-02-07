@@ -222,7 +222,7 @@ def writePRS(prsResults, outputFile, samplenames=None, dialect=None):
                 csvwriter=csv.writer(f, dialect=dialect)
                 for row in zip(*outputdata):
                     csvwriter.writerow(row)
-                print("Successfully wrote scores to "+ os.path.basename(scorefile))
+                print("Successfully wrote scores to "+ scorefile)
         except:
             e = sys.exc_info()[0]
             print( "Error: %s" % e )
@@ -250,7 +250,7 @@ def writeSNPlog(snpidmap, outputFile, flagMap=None, dialect=None):
 
         # get the flag for each snp in the snp log
         if flagMap:
-            flaglist=[str(pvalue)+"_flag"]+[flagMap[snpid] for snpid in sortedlist]+[""]*(maxLen-len(sortedlist))
+            flaglist=["PRS_"+str(pvalue)+"_flag"]+[flagMap[snpid] for snpid in sortedlist]+[""]*(maxLen-len(sortedlist))
             outputdata.append(flaglist)
     if flagMap:
         discardlist=[snp for snp in flagMap.keys() if flagMap[snp]=="discard"]
@@ -261,7 +261,7 @@ def writeSNPlog(snpidmap, outputFile, flagMap=None, dialect=None):
             csvwriter=csv.writer(f, dialect=dialect)
             for row in zip(*outputdata):
                 csvwriter.writerow(row)
-            print("Successfully output log to "+ os.path.basename(snplogfile))
+            print("Successfully output log to "+ snplogfile)
     except:
         e = sys.exc_info()[0]
         print( "Error: %s" % e )
@@ -327,7 +327,7 @@ def regression(scoreMap,phenoFile, phenoDelim, phenoColumns, phenoNoHeader, cova
               f.write("\n")
               f.write(summary.as_text())
               f.write("\n")
-            print("Regression finished using {}. Summary written to {}".format(re.sub("_", ".", pvalue),os.path.basename(outputFile)))
+            print("Regression finished using {}. Summary written to {}".format(re.sub("_", ".", pvalue),outputFile))
         pAll.append(plist)
         r2All.append(r2list)
 
