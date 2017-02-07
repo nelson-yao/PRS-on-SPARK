@@ -15,7 +15,7 @@ import ntpath
 import functools
 import itertools
 
-from time import time
+import time
 import argparse
 
 
@@ -23,9 +23,9 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
-from plottings import *
 
+from plottings import *
+import statsmodels.formula.api as smf
 
 # Takes a line in the genotype file and return the frequency of A1 allele
 def getA1f(geno):
@@ -246,7 +246,7 @@ def writeSNPlog(snpidmap, outputFile, flagMap=None, dialect=None):
     for pvalue in sorted(list(snpidmap.keys())):
 
         sortedlist=sorted(snpidmap[pvalue])
-        outputdata.append([str(pvalue)]+sortedlist+[""]*(maxLen-len(sortedlist)))
+        outputdata.append(["PRS_"+str(pvalue)]+sortedlist+[""]*(maxLen-len(sortedlist)))
 
         # get the flag for each snp in the snp log
         if flagMap:
@@ -272,39 +272,67 @@ def writeSNPlog(snpidmap, outputFile, flagMap=None, dialect=None):
     return outputdata
 
 
-def regression(scoreMap,phenoFile, phenoDelim, phenoColumns, phenoNoHeader, skip=0):
+def regression(scoreMap,phenoFile, phenoDelim, phenoColumns, phenoNoHeader, covarColumns, outputName):
     samplesize=len(scoreMap[list(scoreMap.keys())[0]][1])
-
+    outputFile="{}.regression".format(outputName)
     if phenoNoHeader:
         header=None
     else:
         header=0
     pvalueList=sorted(list(scoreMap.keys()))
     prsData=pd.DataFrame({pvalue:scoreMap[pvalue][1] for pvalue in pvalueList})
+    prsData.columns=["prs{}".format(re.sub("\.","_",str(x))) for x in prsData.columns.tolist()]
+    thresholdNames=prsData.columns.tolist()
+
     phenodata=pd.read_table(phenoFile, header=header, sep=phenoDelim)
+    phenodata.columns=[re.sub("\.","_",str(x)) for x in phenodata.columns]
+
 
     assert samplesize==phenodata.shape[0], "Unequal sample size in pheno file and PRS data"
+
+    covariateNames=phenodata.columns[covarColumns].tolist()
+    covar=phenodata[covariateNames]
     phenotypes=[]
     thresholds=pvalueList
     r2All=[]
     pAll=[]
+    with open(outputFile, "w") as f:
+        f.write("\n")
+
     for columnNumber in phenoColumns:
-        phenotypes.append(phenodata.columns[columnNumber])
+
         pheno=phenodata.iloc[:,columnNumber]
-        regressdata=pd.concat([pheno, prsData], axis=1)
+        phenoName=phenodata.columns[columnNumber]
+        print("Regression with phenotype {}".format(phenoName))
+        phenotypes.append(phenoName)
+        regressdata=pd.concat([pheno, prsData, covar], axis=1)
         regressdataClean=regressdata.dropna(axis=0)
+        print("After removing rows with missing data, {} sample remains".format(regressdata.shape[0]-regressdataClean.shape[0]))
+
         plist=[]
         r2list=[]
-        for pvalue in thresholds:
-            X=regressdataClean[pvalue].values
-            Y=regressdataClean.iloc[:,0].values
-            Xconst=sm.add_constant(X)
-            lm = sm.OLS(Y,Xconst).fit()
+
+        for pvalue in thresholdNames:
+            formula="{} ~ {}+1".format(phenoName, "+".join([pvalue]+covariateNames))
+            lm = smf.ols(formula, data=regressdataClean).fit()
             plist.append(lm.pvalues[1])
             r2list.append(lm.rsquared)
+
+            summary=lm.summary2()
+            oldindex=summary.tables[1].index.tolist()
+            oldindex[1]=re.sub("_", ".", oldindex[1])
+            summary.tables[1].index=oldindex
+            summary.title="{} : {} + {}".format(summary.title, phenoName, oldindex[1])
+            with open(outputFile, "a") as f:
+              f.write("\n")
+              f.write(summary.as_text())
+              f.write("\n")
+            print("Regression finished using {}. Summary written to {}".format(re.sub("_", ".", pvalue),os.path.basename(outputFile)))
         pAll.append(plist)
         r2All.append(r2list)
 
+    print("All regression finished")
+    #return phenotypes, thresholds, r2All, pAll
     return phenotypes, thresholds, r2All, pAll
 
 
@@ -369,6 +397,7 @@ if __name__=="__main__":
 
     parser.add_argument("--pheno_no_header", action="store_true", default=False, dest="pheno_no_header",  help="Sepcify whether the phenotype has a header row")
 
+    parser.add_argument("--covar_columns", action="store", default=[], type=int, nargs="+", dest="covar_columns", help="Specify which columns that the phenotype data is in the provided phenotype data file. Multiple column numbers can be specified to conduct regression with multiple phenotypes. Default is the first column.")
 
 
     results=parser.parse_args()
@@ -396,6 +425,8 @@ if __name__=="__main__":
         geno_start=5
         geno_a1=3
         GENO_delim= " "
+
+    step=0.01
     # List of thresholds:
     thresholds=results.thresholds
     threshold_seq=results.threshold_seq
@@ -404,7 +435,7 @@ if __name__=="__main__":
             lower=min(threshold_seq[0:2])
             upper=max(threshold_seq[0:2])
             step=threshold_seq[2]
-            thresholds=np.arange(lower, upper, step).tolist()
+            thresholds=np.arange(lower, upper+step, step).tolist()
         else:
             print("Invalid input for threshold sequence parameters")
 
@@ -449,12 +480,12 @@ if __name__=="__main__":
     pheno_columns=results.pheno_columns
     pheno_delim=results.pheno_delim
     pheno_no_header=results.pheno_no_header
-
+    covar_columns=results.covar_columns
 
 
     ''' ####  start spark   ##### '''
     ## Start timing:
-    totalstart=time()
+    totalstart=time.time()
     ##  start spark context
     APP_NAME=results.app_name
 
@@ -507,7 +538,7 @@ if __name__=="__main__":
     # ### 2. Initial processing
     # at this step, the genotypes are already filtered to keep only the ones in 'gwasOddsMapMax'
     bpMap={"A":"T", "T":"A", "C":"G", "G":"C"}
-    tic=time()
+    tic=time.time()
     if filetype.lower()=="vcf":
         print("Genotype data format : VCF ")
 
@@ -605,7 +636,7 @@ if __name__=="__main__":
                 genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
                 genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
 
-    print("Dosage generated in {:.1f} seconds".format(time()-tic) )
+    print("Dosage generated in {:.1f} seconds".format(time.time()-tic) )
     samplesize=int(len(genotypeMax.first()[1]))
     print("Detected {} samples in genotype data" .format(str(samplesize)))
 
@@ -635,13 +666,13 @@ if __name__=="__main__":
         thresholdNoMaxSorted=sorted(thresholdlist, reverse=True)
         thresholdmax=max(thresholdlist)
         idlog={}
-        start=time()
+        start=time.time()
         for threshold in thresholdNoMaxSorted:
-            tic=time()
+            tic=time.time()
             gwasFilteredBC=sc.broadcast(filterGWASByP_DF(GWASdf=gwasRDD, pcolumn=gwas_p, idcolumn=gwas_id, oddscolumn=gwas_or, pHigh=threshold, logOdds=log_or))
             #gwasFiltered=spark.sql("SELECT snpid, gwas_or_float FROM gwastable WHERE gwas_p_float < {:f}".format(threshold)
-            print("Filtered GWAS at threshold of {}. Time spent : {:.1f} seconds".format(str(threshold), time()-tic))
-            checkpoint=time()
+            print("Filtered GWAS at threshold of {}. Time spent : {:.1f} seconds".format(str(threshold), time.time()-tic))
+            checkpoint=time.time()
             filteredgenotype=genotypeRDD.filter(lambda line: line[0] in gwasFilteredBC.value)
             assert calltableRDD, "Error, calltable must be provided"
             filteredcalltable=calltableRDD.filter(lambda line: line[0] in gwasFilteredBC.value )
@@ -652,7 +683,7 @@ if __name__=="__main__":
 
               prsMap[threshold]=calcPRSFromGeno(filteredgenotype, gwasFilteredBC.value,samplenum=samplenum, calltable=filteredcalltable)
 
-              print("Finished calculating PRS at threshold of {}. Time spent : {:.1f} seconds".format(str(threshold), time()-checkpoint))
+              print("Finished calculating PRS at threshold of {}. Time spent : {:.1f} seconds".format(str(threshold), time.time()-checkpoint))
 
             else:
               print("No snps left at threshold {}" .format(threshold))
@@ -682,11 +713,11 @@ if __name__=="__main__":
 
 
     if pheno_file is not None:
-        phenotypes, thresholds, r2All, pAll=regression(prsDict,pheno_file, pheno_delim, pheno_columns, pheno_no_header)
-        r_square_plots(phenotypes,r2All,pAll, thresholds, outputName=outputPath, width = 2,bar_width = 0.01)
+        phenotypes, thresholds, r2All, pAll=regression(prsDict,pheno_file, pheno_delim, pheno_columns, pheno_no_header, covarColumns=covar_columns, outputName=outputPath)
+        r_square_plots(phenotypes,r2All,pAll, thresholds, outputName=outputPath, width = 3,bar_width = step)
 
     sc.stop()
-    seconds=time()-totalstart
+    seconds=time.time()-totalstart
     m, s = divmod(seconds, 60)
     h, m = divmod(m, 60)
     print("Total Calculation Time : {:d} hrs {:02d} min {:02d} sec".format(int(h), int(m), int(round(s))))
