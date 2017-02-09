@@ -8,6 +8,8 @@ This file holds the plotting components for the PRS_on_Spark
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import matplotlib as mpl
+import matplotlib
+
 import math
 import os
 """
@@ -19,6 +21,7 @@ import os
 
 
 def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 0.01):
+    matplotlib.use('Agg')
     n_plot = len(pheno)
     row = 0
     if n_plot%width == 0 :
