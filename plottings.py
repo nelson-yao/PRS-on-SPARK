@@ -86,8 +86,8 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
     cb1 = mpl.colorbar.ColorbarBase(axs[counter], cmap=cmap,
                                 norm=norm,orientation='horizontal')
     axs[counter].set_xlabel('correlation p-value')
-    fig.text(0.5, 0.0, 'common X', ha='center')
-    fig.text(0.0, 0.5, 'common Y', va='center', rotation='vertical')
+    fig.text(0.5, 0.0, 'p value threshold', ha='center')
+    fig.text(0.0, 0.5, 'R Square from regression', va='center', rotation='vertical')
     #plt.colorbar()
     plt.savefig('{}.png'.format(outputName), bbox_inches='tight')
     print("R-squared plot saved to {}".format(os.path.basename('{}.png'.format(outputName))))
