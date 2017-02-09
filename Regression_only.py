@@ -83,7 +83,7 @@ if __name__=='__main__':
     pvaluelist=sorted(list(prs_dict.keys()))
     step= pvaluelist[1]-pvaluelist[0]
     
-    high_correlated = r_square_plots(phenotypes,r2All,pAll, thresholds, outputName=outputPath, width = 1,bar_width = step)
+    high_correlated = r_square_plots(phenotypes,r2All,pAll, thresholds, outputName=outputPath, width = 3,bar_width = step)
     
     #print high_correlated.keys()
     phenos = list(high_correlated.keys())
