@@ -90,9 +90,10 @@ if __name__=='__main__':
     for out_pheno in phenos:
         output_dict = {}
         for p in high_correlated[out_pheno]:
-            output_dict[p] = prs_dict[p]
             
-        output=writePRS(output_dict,  outputPath+'_'+out_pheno, samplenames=labels)
+            output_dict[p] = prs_dict[p]
+        
+        output=writePRS(output_dict,  outputPath+'_'+out_pheno, samplenames=list(labels))
     
     
     

@@ -57,7 +57,7 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
     #    axs.append(fig.add_subplot(math.ceil(float(n_plot)/width+1),width, (i%width)+1))
     #axs.append(fig.add_subplot(n_plot/width+1,1,n_plot%width))
     counter = 0
-    anno = '%1.2f'
+    anno = '%1.4f'
     highest_correlate = {}
     for i in range(n_plot):
         ms = _get_max_positions_(rs[i])
