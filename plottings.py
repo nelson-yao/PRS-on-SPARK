@@ -38,7 +38,7 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
     s_p_h = (f_h - (row-1)*h_sp)/row
     s_p_w = (p_w -(width-1)*sp)/width
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(20,10))
     axs = []
 
 
