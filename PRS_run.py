@@ -309,7 +309,7 @@ def regression(scoreMap,phenoFile, phenoDelim, phenoColumns, phenoNoHeader, cova
         phenotypes.append(phenoName)
         regressdata=pd.concat([pheno, prsData, covar], axis=1)
         regressdataClean=regressdata.dropna(axis=0)
-        print("After removing rows with missing data, {} sample remains".format(regressdata.shape[0]-regressdataClean.shape[0]))
+        print("After removing rows with missing data, {} sample removed, {} samples remain".format(regressdata.shape[0]-regressdataClean.shape[0], regressdataClean.shape[0]))
 
         plist=[]
         r2list=[]
