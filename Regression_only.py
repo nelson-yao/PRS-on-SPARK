@@ -54,7 +54,7 @@ if __name__=='__main__':
     
     
     parser = argparse.ArgumentParser(description='PRS Script Parameters', version='1.7')
-    parser.add_argument("Output", action="store", help="The path and name stem for the output files. One name will be used for the score output, the snp log and the regression output. This is similar to the --out flag in pLink")
+    #parser.add_argument("Output", action="store", help="The path and name stem for the output files. One name will be used for the score output, the snp log and the regression output. This is similar to the --out flag in pLink")
 
     parser.add_argument("--pheno_file", action="store", default=None, dest="pheno_file", help="Sepcify the path to the data file for the phenotype. It is assumed that the phenotype data is organized in the same order as the samples in the genoytpe file.")
 
