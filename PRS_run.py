@@ -20,6 +20,8 @@ import argparse
 
 
 # packages for the regression
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -307,7 +309,7 @@ def regression(scoreMap,phenoFile, phenoDelim, phenoColumns, phenoNoHeader, cova
         phenotypes.append(phenoName)
         regressdata=pd.concat([pheno, prsData, covar], axis=1)
         regressdataClean=regressdata.dropna(axis=0)
-        print("After removing rows with missing data, {} sample remains".format(regressdata.shape[0]-regressdataClean.shape[0]))
+        print("After removing rows with missing data, {} sample removed, {} samples remain".format(regressdata.shape[0]-regressdataClean.shape[0], regressdataClean.shape[0]))
 
         plist=[]
         r2list=[]

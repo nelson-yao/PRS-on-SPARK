@@ -4,10 +4,13 @@ This file holds the plotting components for the PRS_on_Spark
 @note: the main function is only for testing purpose
 @requires: matplotlib, for testing, you need nupmy
 """
-
+import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import matplotlib as mpl
+
+
 import math
 import os
 """
@@ -19,6 +22,7 @@ import os
 
 
 def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 0.01):
+    
     n_plot = len(pheno)
     row = 0
     if n_plot%width == 0 :
@@ -34,7 +38,7 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
     s_p_h = (f_h - (row-1)*h_sp)/row
     s_p_w = (p_w -(width-1)*sp)/width
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(20,10))
     axs = []
 
 
@@ -53,20 +57,27 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
     #    axs.append(fig.add_subplot(math.ceil(float(n_plot)/width+1),width, (i%width)+1))
     #axs.append(fig.add_subplot(n_plot/width+1,1,n_plot%width))
     counter = 0
-    anno = '%1.2f'
+    anno = '%1.4f'
+    highest_correlate = {}
     for i in range(n_plot):
         ms = _get_max_positions_(rs[i])
-
+        
         #axs[counter].bar(p_values,rs[i],(max(p_values)-p_values[0])/len(p_values),color =  cm.get_cmap('cool')(p_for_rs[i]))
         axs[counter].bar(p_values,rs[i],bar_width,color =  cm.get_cmap('cool')(p_for_rs[i]))
-
+        ms_ps= []
         for m in ms:
             #axs[counter].scatter(p_values[m],rs[i][m]+bar_width,color = 'red',marker = "d")
             axs[counter].annotate(anno%(p_values[m]),[p_values[m],rs[i][m]])
+            ms_ps.append(p_values[m]) 
 
-
+        highest_correlate[pheno[i]]=ms_ps
+        
         axs[counter].set_title(pheno[i])
         axs[counter].set_ylim([0,max(rs[i])*1.1])
+        axs[counter].set_xlabel('p value threshold')
+        axs[counter].set_ylabel('R square explained')
+        
+
         counter+=1
     #axs[n_plot]
 
@@ -74,9 +85,13 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
     norm = mpl.colors.Normalize(vmin=0, vmax=1.0)
     cb1 = mpl.colorbar.ColorbarBase(axs[counter], cmap=cmap,
                                 norm=norm,orientation='horizontal')
+    axs[counter].set_xlabel('correlation p-value')
+    #fig.text(0.5, 0.0, 'p value threshold', ha='center')
+    #fig.text(0.0, 0.5, 'R Square from regression', va='center', rotation='vertical')
     #plt.colorbar()
     plt.savefig('{}.png'.format(outputName), bbox_inches='tight')
     print("R-squared plot saved to {}".format(os.path.basename('{}.png'.format(outputName))))
+    return highest_correlate
 
 
 
