@@ -470,6 +470,8 @@ if __name__=="__main__":
 
     # get the name of the genotype files
     genoFileNamePattern=results.GENO
+    if "file:/" in genoFileNamePattern:
+        genoFileNamePattern=re.sub("file://", "", genoFileNamePattern)
 
 
     # get the whole list of the file names
@@ -508,13 +510,13 @@ if __name__=="__main__":
     if len(genoFileNames)>23:
         print("and more...")
 
-    print("total of {} files".format(str(len(genoFileNames))))
+    print("total of {} genotype files\n".format(str(len(genoFileNames))))
     # 1. Load files
 
     # read the raw data
     genodata=sc.textFile(genoFileNamePattern)
     #print("Using the GWAS file: {}".format(ntpath.basename(gwasFiles)))
-    print("Using the GWAS file: {}".format(gwasFiles))
+    print("Using the GWAS file: {}\n".format(gwasFiles))
     gwastable=spark.read.option("header",GWAS_has_header).option("delimiter",GWAS_delim).csv(gwasFiles).cache()
     print("Showing top 5 rows of GWAS file")
     gwastable.show(5)
