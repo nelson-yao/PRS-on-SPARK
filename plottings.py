@@ -74,8 +74,8 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
         
         axs[counter].set_title(pheno[i])
         axs[counter].set_ylim([0,max(rs[i])*1.1])
-        #axs[counter].set_xlab('p value threshold')
-        #axs[counter].set_ylab('R square explained')
+        axs[counter].set_xlabel('p value threshold')
+        axs[counter].set_ylabel('R square explained')
         
 
         counter+=1
@@ -86,8 +86,8 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
     cb1 = mpl.colorbar.ColorbarBase(axs[counter], cmap=cmap,
                                 norm=norm,orientation='horizontal')
     axs[counter].set_xlabel('correlation p-value')
-    fig.text(0.5, 0.0, 'p value threshold', ha='center')
-    fig.text(0.0, 0.5, 'R Square from regression', va='center', rotation='vertical')
+    #fig.text(0.5, 0.0, 'p value threshold', ha='center')
+    #fig.text(0.0, 0.5, 'R Square from regression', va='center', rotation='vertical')
     #plt.colorbar()
     plt.savefig('{}.png'.format(outputName), bbox_inches='tight')
     print("R-squared plot saved to {}".format(os.path.basename('{}.png'.format(outputName))))
