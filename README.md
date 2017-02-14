@@ -70,15 +70,11 @@ By default, the output format of PRS results and SNP logs is csv.
 ## Running command-line script PRS_run.py
 ### Parameters
 
-There are three required positional parameters: 
-1. path to the genotype file(s)
-2. path to the GWAS file
-3. path to the output file
 
 
 A description of the parameters for the script can be obtained by typing: 
 ```
-python PRS_run.py
+python PRS_run.py --help
 ```
 Commandline-stype flags are used to specify how the scores are calculated. 
 
@@ -94,7 +90,7 @@ Followed by three positional parameters
   GWAS                  Name of the GWAS file, can be a name or path.
   Output                The path and name for the output file
 ```
-Followed by some optional parameters: 
+Followed by some optional parameters. By default, the pipeline assumes the following. 
 
 * To specify the format of genotype file :
 ```
@@ -106,16 +102,16 @@ The type of genotype file used as input,  choose between VCF and GEN, default is
 ```
   --thresholds  0.5 0.2 0.3
 ```
-Enter one or more float numbers separated by comma. Default is [0.5, 0.2, 0.1, 0.05, 0.01, 0.001, 0.0001]
+Enter one or more float numbers separated by comma. Default is 0.5 0.2 0.1 0.05 0.01 0.001 0.0001
 
 Alternatively you can specify a sequence of thresholds and calculate scores at each threshold:
 
 ```
   --threshold_seq THRESHOLD_SEQ 0.1 0.5 0.01
 ```
-After the flag, the first number is the starting point of the sequence, the second is the end point of the sequence, the third number denotes the 
+After the flag, the first number is the starting point of the sequence, the second is the end point of the sequence, the third number denotes the step size. The above example would yield the sequence 0.1,0.11,0.12.....0.49,0.50. Note the interval is inclusive of the endpoints.
 
-
+* By default 
                         
   --GWAS_no_header      Adding this parameter signals that there is no headers
                         for the GWAS. The default is to assume that GWAS has
