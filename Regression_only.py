@@ -104,7 +104,7 @@ if __name__=='__main__':
                 spamwriter.writerow(['threshold','coefficient significance','R square'])
                 n_pheno = len(phenotypes)
                 for x in range(n_pheno):
-                    l = len(ps)
+                    l = len(pAll[x])
                     for i in range(l):
                         spamwriter.writerow([thresholds[i],pAll[x][i],r2All[x][i]])
                 
