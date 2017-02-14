@@ -99,7 +99,7 @@ if __name__=='__main__':
     
     if log_pvalue:
         for pheno in phenotypes:
-            with open(outputPath+'_'+pheno+'_Pvalue', 'w') as f:
+            with open(outputPath+'_'+pheno+'_Pvalue.csv', 'w') as f:
                 spamwriter = csv.writer(f)
                 spamwriter.writerow(['threshold','coefficient significance','R square'])
                 n_pheno = len(phenotypes)
