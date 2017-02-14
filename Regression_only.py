@@ -101,11 +101,12 @@ if __name__=='__main__':
         for pheno in phenotypes:
             with open(outputPath+'_'+pheno+'_Pvalue', 'w') as f:
                 spamwriter = csv.writer(f)
-                spamwriter.writerow(['threshold','coefficient significance'])
-                for ps in pAll:
+                spamwriter.writerow(['threshold','coefficient significance','R square'])
+                n_pheno = len(phenotypes)
+                for x in range(n_pheno):
                     l = len(ps)
                     for i in range(l):
-                        spamwriter.writerow([thresholds[i],ps[i]])
+                        spamwriter.writerow([thresholds[i],pAll[x][i],r2All[x][i]])
                 
     
     
