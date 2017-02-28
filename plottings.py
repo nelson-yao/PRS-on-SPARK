@@ -13,13 +13,29 @@ import matplotlib as mpl
 
 import math
 import os
+
+
+"""
+@note: normalize the pvalue to make a proper color
+
+"""
+def __norm_p_value(p_value):
+    SIG = 0.05
+    re = 0
+    if p_value > SIG :
+        re = ((p_value - SIG)/(1-SIG))*0.5+0.5
+    else:
+        re = (p_value/SIG)*0.5
+    return re
+
+
+
 """
 @author: zhuyuecai
 @param pheno_rs: a dictionary with the pheno type name as keys, and a list of ordered R square as values
 @param p_values: a list of ordered p values range from 0 to 1
 @param width: number of subplot in one row, default 2
 """
-
 
 def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 0.01):
     
@@ -63,7 +79,7 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
         ms = _get_max_positions_(rs[i])
         
         #axs[counter].bar(p_values,rs[i],(max(p_values)-p_values[0])/len(p_values),color =  cm.get_cmap('cool')(p_for_rs[i]))
-        axs[counter].bar(p_values,rs[i],bar_width,color =  cm.get_cmap('cool')(p_for_rs[i]))
+        axs[counter].bar(p_values,rs[i],bar_width,color =  cm.get_cmap('cool')(__norm_p_value(p_for_rs[i])))
         ms_ps= []
         for m in ms:
             #axs[counter].scatter(p_values[m],rs[i][m]+bar_width,color = 'red',marker = "d")
@@ -82,7 +98,12 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
     #axs[n_plot]
 
     cmap = mpl.cm.cool
-    norm = mpl.colors.Normalize(vmin=0, vmax=1.0)
+    #norm = mpl.colors.Normalize(vmin=0, vmax=1.0)
+    
+    bounds = [0.0, 0.05, 1]
+    norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+    
+    
     cb1 = mpl.colorbar.ColorbarBase(axs[counter], cmap=cmap,
                                 norm=norm,orientation='horizontal')
     axs[counter].set_xlabel('correlation p-value')
