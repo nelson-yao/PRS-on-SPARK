@@ -103,7 +103,7 @@ if __name__=='__main__':
     
     
     prs_dict,labels = getPRSscore(prs_score)
-    phenotypes, thresholds, r2All, pAll=regression(prs_dict,pheno_file, pheno_delim, pheno_columns, pheno_no_header, covarColumns=covar_columns, outputName=outputPath)
+    phenotypes, thresholds, r2All, pAll=regression(prs_dict,pheno_file, pheno_delim, pheno_columns, pheno_no_header, covarColumns=covar_columns, outputName=outputPath,logger = logger)
     pvaluelist=sorted(list(prs_dict.keys()))
     step= pvaluelist[1]-pvaluelist[0]
     
