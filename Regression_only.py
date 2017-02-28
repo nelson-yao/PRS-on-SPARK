@@ -51,7 +51,7 @@ def getPRSscore(PRS_file):
         
         
 if __name__=='__main__':
-    
+    import logging
     
     parser = argparse.ArgumentParser(description='PRS Script Parameters', version='1.7')
     #parser.add_argument("Output", action="store", help="The path and name stem for the output files. One name will be used for the score output, the snp log and the regression output. This is similar to the --out flag in pLink")
@@ -79,6 +79,28 @@ if __name__=='__main__':
     covar_columns=results.covar_columns
     outputPath=results.Output
     log_pvalue = results.log_pvalue
+    
+    #logger
+    
+    logger = logging.getLogger("regression_log")
+    logger.setLevel(logging.DEBUG)
+    # create file handler which logs even debug messages
+    fh = logging.FileHandler(outputPath+".log")
+    fh.setLevel(logging.DEBUG)
+    # create console handler with a higher log level
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    # create formatter and add it to the handlers
+    formatter1 = logging.Formatter('%(asctime)s %(levelname)s : %(message)s')
+    formatter2 = logging.Formatter('%(asctime)s %(levelname)s : %(message)s')
+
+    ch.setFormatter(formatter1)
+    fh.setFormatter(formatter2)
+    # add the handlers to the logger
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+    #--------------------------
+    
     
     prs_dict,labels = getPRSscore(prs_score)
     phenotypes, thresholds, r2All, pAll=regression(prs_dict,pheno_file, pheno_delim, pheno_columns, pheno_no_header, covarColumns=covar_columns, outputName=outputPath)
