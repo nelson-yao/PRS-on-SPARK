@@ -117,7 +117,7 @@ if __name__=='__main__':
             
             output_dict[p] = prs_dict[p]
         
-        output=writePRS(output_dict,  outputPath+'_'+out_pheno, samplenames=list(labels))
+        output=writePRS(output_dict,  outputPath+'_'+out_pheno, logger=logger,samplenames=list(labels))
     
     if log_pvalue:
         for pheno in phenotypes:
