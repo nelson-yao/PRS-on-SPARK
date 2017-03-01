@@ -28,6 +28,8 @@ def __norm_p_value(p_value):
         re = (p_value/SIG)*0.5
     return re
 
+def __norm_p_list(p_values):
+    return [__norm_p_value(p) for p in p_values]
 
 
 """
@@ -79,7 +81,7 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
         ms = _get_max_positions_(rs[i])
         
         #axs[counter].bar(p_values,rs[i],(max(p_values)-p_values[0])/len(p_values),color =  cm.get_cmap('cool')(p_for_rs[i]))
-        axs[counter].bar(p_values,rs[i],bar_width,color =  cm.get_cmap('cool')(__norm_p_value(p_for_rs[i])))
+        axs[counter].bar(p_values,rs[i],bar_width,color =  cm.get_cmap('cool')(__norm_p_list(p_for_rs[i])))
         ms_ps= []
         for m in ms:
             #axs[counter].scatter(p_values[m],rs[i][m]+bar_width,color = 'red',marker = "d")
