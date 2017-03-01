@@ -102,7 +102,7 @@ def r_square_plots(pheno,rs,p_for_rs, p_values,outputName,width = 2,bar_width = 
     cmap = mpl.cm.cool
     #norm = mpl.colors.Normalize(vmin=0, vmax=1.0)
     
-    bounds = [0.0, 0.05, 1]
+    bounds = [0.0,0.0001,0.001, 0.05,0.1,0.5 1]
     norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
     
     
