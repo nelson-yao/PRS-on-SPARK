@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from PRS_run import *
 import argparse
-
+from DRSFiltering import *
     
     
     
@@ -142,11 +142,13 @@ if __name__=='__main__':
                 
     
     if drs:
-        import DRSFiltering as DR
         
-        g_header,gwas = DR.get_gwas(gwas_path)
-        s_header, snplog = DR.get_snplog(snplog_path,pvaluelist)
-        filtered_gwas = DR.DRSFiltering(r2All,snplog,gwas)
+        
+        g_header,gwas = get_gwas(gwas_path)
+        print gwas.keys
+        s_header, snplog = get_snplog(snplog_path,pvaluelist)
+        print snplog[0]
+        filtered_gwas = DRSFiltering(r2All,snplog,gwas)
         with open(outputPath+'_'+pheno+'_drsgwas.csv', 'w') as f:
             spamwriter = csv.writer(f)
             spamwriter.writerow(g_header)
