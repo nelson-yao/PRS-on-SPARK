@@ -146,7 +146,9 @@ if __name__=='__main__':
         
         g_header,gwas = get_gwas(gwas_path)
         print gwas.keys
-        s_header, snplog = get_snplog(snplog_path,pvaluelist)
+        snplog = get_snplog(snplog_path,pvaluelist)
+        print snplog_path
+        
         print snplog[0]
         filtered_gwas = DRSFiltering(r2All,snplog,gwas)
         with open(outputPath+'_'+pheno+'_drsgwas.csv', 'w') as f:

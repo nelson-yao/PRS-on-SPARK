@@ -21,7 +21,8 @@ def get_snplog(path,pvalues):
             for i in range(len(t)):
                 if snp[i*2]!='':
                     t[i].append(snp[i*2])
-    return header,t
+    print t[0]
+    return t
 
 
 
