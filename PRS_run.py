@@ -73,7 +73,7 @@ def makeGenotypeCheckRef(line, checkMap, toDF=False):
             genotype=list(map(add, AA2, AB))
 
 
-    else:
+    #else:
         # fail-safe, in case a SNP does not have a flag but still exist in the genotype file
         #print("SNP {} was not accounted for in the alignment checking step, discarding this SNP".format(rsid))
         #genotype=[0.0]*(len(gen)/3)
