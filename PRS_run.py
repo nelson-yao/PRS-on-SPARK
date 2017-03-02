@@ -75,7 +75,7 @@ def makeGenotypeCheckRef(line, checkMap, toDF=False):
 
     else:
         # fail-safe, in case a SNP does not have a flag but still exist in the genotype file
-        print("SNP {} was not accounted for in the alignment checking step, discarding this SNP".format(rsid))
+        #print("SNP {} was not accounted for in the alignment checking step, discarding this SNP".format(rsid))
         #genotype=[0.0]*(len(gen)/3)
     if genotype:
         if toDF:  # future work, in case want to use SQL methods on Spark DataFrame
