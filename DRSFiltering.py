@@ -43,13 +43,17 @@ def get_gwas(path_to_gwas):
 #output the snps that are considered to be adding noise to prs
 def DRSFiltering(rs,snplog,gwas):
     re = []
-    for i in range(len(snplog)-1).reverse():
-        if rs[i+1] < rs[i]:
+    filtered_gwas = {}
+    print len(rs)
+    print len(snplog)
+    a = range(len(snplog)-1)
+    for i in a:
+        if rs[i+1] >= rs[i]:
           re = re +  list(set(snplog[i+1])-set(snplog[i]))
     for s in re:
-        del gwas[s]
+        filtered_gwas[s] =  gwas[s]
     
-    return gwas
+    return filtered_gwas
 
 if __name__ == '__main__':
     path_to_gwas=  'GWAS_SCZ_beta_noaf_full_noambi_NEURON_KIDS_noamb_hc09_clump.txt'

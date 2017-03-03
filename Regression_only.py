@@ -130,33 +130,32 @@ if __name__=='__main__':
         output=writePRS(output_dict,  outputPath+'_'+out_pheno, logger=logger,samplenames=list(labels))
     
     if log_pvalue:
-        for pheno in phenotypes:
-            with open(outputPath+'_'+pheno+'_Pvalue.csv', 'w') as f:
+        for x in range(len(phenotypes)):
+        #for pheno in phenotypes:
+            with open(outputPath+'_'+phenotypes[x]+'_Pvalue.csv', 'w') as f:
                 spamwriter = csv.writer(f)
                 spamwriter.writerow(['threshold','coefficient significance','R square'])
-                n_pheno = len(phenotypes)
-                for x in range(n_pheno):
-                    l = len(pAll[x])
-                    for i in range(l):
-                        spamwriter.writerow([thresholds[i],pAll[x][i],r2All[x][i]])
+                #n_pheno = len(phenotypes)
+                #for x in range(n_pheno):
+                l = len(pAll[x])
+                for i in range(l):
+                    spamwriter.writerow([thresholds[i],pAll[x][i],r2All[x][i]])
                 
     
     if drs:
         
         
         g_header,gwas = get_gwas(gwas_path)
-        print gwas.keys
         snplog = get_snplog(snplog_path,pvaluelist)
-        print snplog_path
-        
-        print snplog[0]
-        filtered_gwas = DRSFiltering(r2All,snplog,gwas)
-        with open(outputPath+'_'+pheno+'_drsgwas.csv', 'w') as f:
-            spamwriter = csv.writer(f)
-            spamwriter.writerow(g_header)
-            for k,v in gwas.iteritems():
-                l = [k]+v
-                spamwriter.writerow(l)
+        for x in range(len(phenotypes)):
+
+            filtered_gwas = DRSFiltering(r2All[x],snplog,gwas)
+            with open(outputPath+'_'+phenotypes[x]+'_drsgwas.csv', 'w') as f:
+                spamwriter = csv.writer(f)
+                spamwriter.writerow(g_header)
+                for k,v in filtered_gwas.iteritems():
+                    l = [k]+v
+                    spamwriter.writerow(l)
                 
             
         
