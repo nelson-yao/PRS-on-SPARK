@@ -47,6 +47,7 @@ def getCall(line):
     calls=[int(round(x)) for x in calls]
     return calls
 
+
 # Takes an array of triplets and convert to number of A1 alleles
 def makeGenotype(line):
     AA=line[0::3]
@@ -363,7 +364,7 @@ if __name__=="__main__":
     parser.add_argument("--gwas_a1f", action="store", default=5, dest="gwas_a1f", type=int, help="Column number in your GWAS that contains frequency of A1, with first column being 0, default is 5.")
     parser.add_argument("--filetype", action="store",default="VCF", dest="filetype", help="The type of genotype file used as input , choose between VCF and GEN, default is VCF", choices=set(["VCF", "GEN"]))
 
-    parser.add_argument("--thresholds", action="store", default=[0.5, 0.2, 0.1, 0.05, 0.01, 0.001, 0.0001], dest="thresholds", help="The p-value thresholds that controls which SNPs are used from the GWAS. Specifying the p-values simply by input one after another. default is [0.5, 0.2, 0.1, 0.05, 0.01, 0.001, 0.0001]", nargs="+", type=float)
+    parser.add_argument("--thresholds", action="store", default=[], dest="thresholds", help="The p-value thresholds that controls which SNPs are used from the GWAS. Specifying the p-values simply by input one after another. default is empty list []", nargs="+", type=float)
 
     parser.add_argument("--threshold_seq", action="store", default=None, dest="threshold_seq", help="Defines a sequence that contains all the p-value thresholds that controls which SNPs are used from the GWAS. Input is three numbers separted by space: lower bound, upper bound, step size. Default is None. Defining a sequence automatically overwrites the threshold list defined under --thresholds", nargs="+", type=float)
 
@@ -457,15 +458,18 @@ if __name__=="__main__":
     # List of thresholds:
     thresholds=results.thresholds
     threshold_seq=results.threshold_seq
+    threshold_interval=[]
     if threshold_seq is not None:
         if len(threshold_seq)==3:
             lower=min(threshold_seq[0:2])
             upper=max(threshold_seq[0:2])
             step=threshold_seq[2]
-            thresholds=np.arange(lower, upper+step, step).tolist()
+            threshold_interval=np.arange(lower, upper+step, step).tolist()
         else:
             raise("Invalid input for threshold sequence parameters")
             logger.error("Invalid input for threshold sequence parameters")
+
+    thresholds=thresholds+threshold_interval
 
     # file delimiters:
     GWAS_delim=results.GWAS_delim
@@ -560,6 +564,7 @@ if __name__=="__main__":
     # 1.1 Filter GWAS and prepare odds ratio
 
     # filter the genotype to contain only the SNPs less than the maximum p value threshold in the GWAS
+    # filter the genotype to contain only the SNPs less than the maximum p value threshold in the GWAS
     maxThreshold=max(thresholds)  # maximum p value
     gwasOddsMapMax=filterGWASByP_DF(GWASdf=gwastable, pcolumn=gwas_p, idcolumn=gwas_id, oddscolumn=gwas_or, pHigh=maxThreshold, logOdds=log_or)
     gwasOddsMapMaxCA=sc.broadcast(gwasOddsMapMax).value  # Broadcast the map
@@ -568,102 +573,63 @@ if __name__=="__main__":
     # at this step, the genotypes are already filtered to keep only the ones in 'gwasOddsMapMax'
     bpMap={"A":"T", "T":"A", "C":"G", "G":"C"}
     tic=time.time()
+
+
     if filetype.lower()=="vcf":
-        logger.info("Genotype data format : VCF ")
+        logger.info("Genotype data format : .VCF ")
 
-        # [chrom, bp, snpid, A1, A2, *genotype]
-        genointermediate=genodata.filter(lambda line: ("#" not in line)).map(lambda line: line.split(GENO_delim)).filter(lambda line: line[geno_id] in gwasOddsMapMaxCA).map(lambda line: line[0:5]+[chunk.strip('"').split(":")[3] for chunk in line[geno_start::]]).map(lambda line: line[0:5]+[triplet.split(",") for triplet in line[5::]])
-
-        ## (snpid, [genotypes])
-        genotable=genointermediate.map(lambda line: (line[geno_id], list(itertools.chain.from_iterable(line[5::])))).mapValues(lambda geno: [float(x) for x in geno])
-
-        if check_ref:
-            if use_maf:
-
-                logger.info("Determining strand alignment, using MAF")
-                genoA1f=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1], getA1f(line[2]))).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
-
-                # 'GwasA1F' means the allele of the A1 frequency in the GWAS
-                gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2], line[gwas_a1f])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasA1F"])
-
-                # checktable = [ geno_snpid, genoA1, genoA2, genoA1f, gwas_snpid, gwasA1, gwasA2, gwasA1f]
-                checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
-                if checkDup:
-                    logger.info("Searching and removing duplicated SNPs")
-                    flagList = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collect()  #  (snpid, flag)
-                    flagMap = rmDup(flagList)
-                else:
-                    flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
-
-            else:
-                logger.info(" determining strand alignment, without using MAF. SNPs with Alleles that are reverse compliments will be discarded")
-                genoalleles=genointermediate.map(lambda line: (line[geno_id], (line[geno_a1], line[geno_a1+1]), [float(x) for x in list(itertools.chain.from_iterable(line[5::]))])).map(lambda line: (line[0], line[1][0], line[1][1])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
-
-                gwasalleles=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
-
-                checktable=genoalleles.join(gwasalleles, genoalleles["Snpid_geno"]==gwasalleles["Snpid_gwas"], "inner").cache()
-
-                if checkDup:
-                    logger.info("Searching and removing duplicated SNPs")
-                    flagList = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collect()
-                    flagMap = rmDup(flagList)
-                else:
-                    # no need to check the duplicates if the data is preprocessed
-                    flagMap = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collectAsMap()
-
-            logger.info("Generating genotype dosage while taking into account difference in strand alignment")
-            flagMap=sc.broadcast(flagMap).value
-            genotypeMax=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard").map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
-
-        else:
-            logger.info("Generating genotype dosage without checking reference allele alignments")
-            genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
-            flagMap=False
-            if checkDup:
-                logger.info("Searching and removing duplicated SNPs")
-                genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
-                genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
+        # Change to the format [snpid, A1, A2, *genotypelist]
+        genointermediate=genodata.filter(lambda line: ("#" not in line))\
+        .filter(lambda line: line.split(GENO_delim)[geno_id] in gwasOddsMapMaxCA)\
+        .map(lambda line: ([line.split(GENO_delim)[x] for x in [geno_id,geno_a1, geno_a1+1]],[float(x) for x in ",".join(re.findall("0\.\d+,0\.\d+,0\.\d+", line)).split(",")]))
 
     elif filetype.lower() == "gen":
-        logger.info("Genotype data format : GEN")
-        genotable=genodata.map(lambda line: line.split(GENO_delim)).filter(lambda line: line[geno_id] in gwasOddsMapMaxCA).map(lambda line: (line[geno_id], line[geno_start::])).mapValues(lambda geno: [float(call) for call in geno])
-        if check_ref:
-            if use_maf:
-                logger.info("Determining strand alignment, using MAF")
-                genoA1f=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1], getA1f([float(x) for x in line[geno_start::]]))).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
-                gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2], line[gwas_a1f])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasA1f" ])
-                checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
-                if checkDup:
-                    logger.info("Searching and removing duplicated SNPs")
-                    flagList = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collect()
-                    flagMap = rmDup(flagList)
-                else:
-                    flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
-            else:
-                logger.info(" determining strand alignment, without using MAF. SNPs with Alleles that are reverse compliments will be discarded")
-                genoalleles=genodata.map(lambda line: line.split(GENO_delim)).map(lambda line: (line[geno_id], line[geno_a1], line[geno_a1+1])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
-                gwasalleles=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
-                checktable=genoalleles.join(gwasalleles, genoalleles["Snpid_geno"]==gwasalleles["Snpid_gwas"], "inner").cache()
+        logger.info("Genotype data format : .GEN")
+        # Change to the format [snpid, A1, A2, *genotypelist]
+        genointermediate=genodata.map(lambda line: ([line.split(GENO_delim)[x] for x in [geno_id,geno_a1, geno_a1+1]], [float(x) for x in line.split(GENO_delim)[geno_start::]]))
 
-                if checkDup:
-                    logger.info("Searching and removing duplicated SNPs")
-                    flagList = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collect()
-                    flagMap = rmDup(flagList)
-                else:
-                    flagMap = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collectAsMap()
 
-            logger.info("Generating genotype dosage while taking into account difference in strand alignment")
-            flagMap=sc.broadcast(flagMap).value
-            genotypeMax=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
+    # Change to the format [snpid, *genotypelist]
 
-        else:
-            logger.info("Generating genotype dosage without checking allele alignments")
-            genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
-            flagMap=False
+    genotable=genointermediate.map(lambda line: (line[0][0], line[1]))
+
+    if check_ref:
+        if use_maf:
+            logger.info("Determining strand alignment, using MAF")
+            genoA1f=genointermediate.map(lambda line: (line[0]+[getA1f(line[1])])).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
+            gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2], line[gwas_a1f])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasA1f" ])
+            checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
             if checkDup:
                 logger.info("Searching and removing duplicated SNPs")
-                genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
-                genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
+                flagList = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collect()
+                flagMap = rmDup(flagList)
+            else:
+                flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
+        else:
+            logger.info("Determining strand alignment, without using MAF. SNPs with Alleles that are reverse compliments will be discarded")
+            genoalleles=genotable.map(lambda line: (line[0])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
+            gwasalleles=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
+            checktable=genoalleles.join(gwasalleles, genoalleles["Snpid_geno"]==gwasalleles["Snpid_gwas"], "inner").cache()
+
+            if checkDup:
+                logger.info("Searching and removing duplicated SNPs")
+                flagList = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collect()
+                flagMap = rmDup(flagList)
+            else:
+                flagMap = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collectAsMap()
+
+        logger.info("Generating genotype dosage while taking into account difference in strand alignment")
+        flagMap=sc.broadcast(flagMap).value
+        genotypeMax=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
+
+    else:
+        logger.info("Generating genotype dosage without checking allele alignments")
+        genotypeMax=genotable.mapValues(lambda line: makeGenotype(line)).cache()
+        flagMap=False
+        if checkDup:
+            logger.info("Searching and removing duplicated SNPs")
+            genotypeCount=genotypeMax.map(lambda line: (line[0], 1)).reduceByKey(lambda a,b: a+b).filter(lambda line: line[1]==1).collectAsMap()
+            genotypeMax=genotypeMax.filter(lambda line: line[0] in genotypeCount)
 
     logger.info("Dosage generated in {:.1f} seconds".format(time.time()-tic) )
     samplesize=int(len(genotypeMax.first()[1]))
