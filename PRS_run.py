@@ -341,14 +341,6 @@ def regression(scoreMap,phenoFile, phenoDelim, phenoColumns, phenoNoHeader, cova
 
 
 if __name__=="__main__":
-    import pyspark
-    from pyspark.sql import SparkSession
-    from pyspark.sql import Row
-    from pyspark.sql.functions import udf
-    from pyspark.sql.types import *
-    from pyspark import SparkConf, SparkContext
-    # ATTN: python index starts at 0, so if you want to specify the second column, use 1
-    # define column number for contents in GWAS
     parser = argparse.ArgumentParser(description='PRS Script Parameters', version='1.7')
     # Mandatory positional arguments
     parser.add_argument("GENO", action="store", help="Name of the Genotype files, can be a name or path, or name patterns with wildcard character ")
@@ -405,6 +397,16 @@ if __name__=="__main__":
 
 
     results=parser.parse_args()
+
+    import pyspark
+    from pyspark.sql import SparkSession
+    from pyspark.sql import Row
+    from pyspark.sql.functions import udf
+    from pyspark.sql.types import *
+    from pyspark import SparkConf, SparkContext
+    # ATTN: python index starts at 0, so if you want to specify the second column, use 1
+    # define column number for contents in GWAS
+
 
     outputPath=results.Output
 
@@ -469,7 +471,7 @@ if __name__=="__main__":
             raise("Invalid input for threshold sequence parameters")
             logger.error("Invalid input for threshold sequence parameters")
 
-    thresholds=thresholds+threshold_interval
+    thresholds=list(set(thresholds+threshold_interval))
 
     # file delimiters:
     GWAS_delim=results.GWAS_delim
@@ -560,12 +562,13 @@ if __name__=="__main__":
     logger.info("Allele A2 : Column {}".format(gwas_a2))
     if use_maf:
         logger.info("Allele Frequencies : Column {}".format(gwas_a1f))
-
+    logger.info("Calculating scores at {} different thresholds".format(len(thresholds)))
     # 1.1 Filter GWAS and prepare odds ratio
 
     # filter the genotype to contain only the SNPs less than the maximum p value threshold in the GWAS
     # filter the genotype to contain only the SNPs less than the maximum p value threshold in the GWAS
     maxThreshold=max(thresholds)  # maximum p value
+    logger.info("Maximum threshold : {}".format(maxThreshold))
     gwasOddsMapMax=filterGWASByP_DF(GWASdf=gwastable, pcolumn=gwas_p, idcolumn=gwas_id, oddscolumn=gwas_or, pHigh=maxThreshold, logOdds=log_or)
     gwasOddsMapMaxCA=sc.broadcast(gwasOddsMapMax).value  # Broadcast the map
 
@@ -579,14 +582,16 @@ if __name__=="__main__":
         logger.info("Genotype data format : .VCF ")
 
         # Change to the format [snpid, A1, A2, *genotypelist]
-        genointermediate=genodata.filter(lambda line: ("#" not in line))\
-        .filter(lambda line: line.split(GENO_delim)[geno_id] in gwasOddsMapMaxCA)\
-        .map(lambda line: ([line.split(GENO_delim)[x] for x in [geno_id,geno_a1, geno_a1+1]],[float(x) for x in ",".join(re.findall("0\.\d+,0\.\d+,0\.\d+", line)).split(",")]))
+        genointermediate=genodata.filter(lambda line: ("#" not in line)).map(lambda line: line.split(GENO_delim)).filter(lambda line: line[geno_id] in gwasOddsMapMaxCA).map(lambda line:([line[x] for x in [geno_id, geno_a1, geno_a1+1]],[chunk.strip('"').split(":")[3] for chunk in line[geno_start::]]))\
+        .mapValues(lambda line:[float(x) for x in ",".join(line).split(",")])
 
     elif filetype.lower() == "gen":
         logger.info("Genotype data format : .GEN")
         # Change to the format [snpid, A1, A2, *genotypelist]
-        genointermediate=genodata.map(lambda line: ([line.split(GENO_delim)[x] for x in [geno_id,geno_a1, geno_a1+1]], [float(x) for x in line.split(GENO_delim)[geno_start::]]))
+        genointermediate=genodata\
+        .filter(lambda line: line.split(GENO_delim)[geno_id] in gwasOddsMapMaxCA)\
+        .map(lambda line: ([line.split(GENO_delim)[x] for x in [geno_id,geno_a1, geno_a1+1]], [float(x) for x in line.split(GENO_delim)[geno_start::]]))
+
 
 
     # Change to the format [snpid, *genotypelist]
@@ -595,7 +600,7 @@ if __name__=="__main__":
 
     if check_ref:
         if use_maf:
-            logger.info("Determining strand alignment, using MAF")
+            logger.info("Determining reference allele, using MAF")
             genoA1f=genointermediate.map(lambda line: (line[0]+[getA1f(line[1])])).toDF(["Snpid_geno", "GenoA1", "GenoA2", "GenoA1f"])
             gwasA1f=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2], line[gwas_a1f])).toDF(["Snpid_gwas", "GwasA1", "GwasA2", "GwasA1f" ])
             checktable=genoA1f.join(gwasA1f, genoA1f["Snpid_geno"]==gwasA1f["Snpid_gwas"], "inner").cache()
@@ -606,7 +611,7 @@ if __name__=="__main__":
             else:
                 flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
         else:
-            logger.info("Determining strand alignment, without using MAF. SNPs with Alleles that are reverse compliments will be discarded")
+            logger.info("Determining reference allele, without using MAF. SNPs with Alleles that are reverse compliments will be discarded")
             genoalleles=genotable.map(lambda line: (line[0])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
             gwasalleles=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
             checktable=genoalleles.join(gwasalleles, genoalleles["Snpid_geno"]==gwasalleles["Snpid_gwas"], "inner").cache()
@@ -618,9 +623,14 @@ if __name__=="__main__":
             else:
                 flagMap = checktable.rdd.map(lambda line: checkAlignmentDFnoMAF(line, bpMap)).collectAsMap()
 
-        logger.info("Generating genotype dosage while taking into account difference in strand alignment")
+        logger.info("Generating genotype dosage while taking into account difference in reference alelles")
         flagMap=sc.broadcast(flagMap).value
+        discardCount=list(flagMap.values()).count("discard")
+        totalCount=len(flagMap)
+        logger.info("{} / {} SNPs discarded in the reference allele comparison step".format(discardCount, totalCount))
+
         genotypeMax=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).map(lambda line: makeGenotypeCheckRef(line, checkMap=flagMap)).cache()
+
 
     else:
         logger.info("Generating genotype dosage without checking allele alignments")
@@ -637,6 +647,28 @@ if __name__=="__main__":
 
     #genoa1f.map(lambda line:"\t".join([line[0], "\t".join(line[1]), str(line[2])])).saveAsTextFile("../MOMS_info03_maf")
 
+    ## use the thresholds as bins, put each snp in the corresponding bins
+
+    gwasP=gwastable.rdd.filter(lambda line: float(line[gwas_p])< maxThreshold).map(lambda line: (line[gwas_id], float(line[gwas_p]))).collect()
+
+    def binTuple(snpwithP, thresholdList):
+      results=[]
+      snpwithPsorted=sorted(snpwithP,key=lambda x: x[1])
+      thresholdSorted=sorted(thresholdList)
+      thresholdidx=0
+      for snp, p in snpwithPsorted:
+
+        if p>thresholdSorted[thresholdidx]:
+          thresholdidx+=1
+        results.append((snp,thresholdSorted[thresholdidx]))
+      return results
+    logger.info("Separating data into bins")
+    snpBin=binTuple(gwasP, thresholds)
+
+    snpBinRDD=sc.parallelize(snpBin)
+
+    genotypeMaxRanked=snpBinRDD.join(genotypeMax)
+
     # Calculate PRS at the sepcified thresholds
     if flagMap:
       genocalltable=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).mapValues(lambda geno: getCall(geno)).cache()
@@ -646,45 +678,73 @@ if __name__=="__main__":
     assert len(genocalltable.first()[1])==samplesize, "Bug found, size of genotype and call table differ"
 
 
+    genocalltableRanked=snpBinRDD.join(genocalltable)
 
-    def calcPRSFromGeno(genotypeRDD, oddsMap, samplenum,calltable=False):
-        assert calltable, "**** No call table found ***** "
-        totalcount=calltable.map(lambda line: line[1]).reduce(lambda a,b: map(add, a, b))
-        multiplied=genotypeRDD.map(lambda line:[call * oddsMap[line[0]] for call in line[1]])
-        PRS=multiplied.reduce(lambda a,b: map(add, a, b))
-        normalizedPRS=[x/count if count != 0 else x for x, count in zip(PRS, totalcount)]
-        return (totalcount,normalizedPRS)
 
-    def calcAll(genotypeRDD, gwasRDD, thresholdlist, logsnp, samplenum,calltableRDD=False):
-        logger.info("Start Calculating PRS at each threshold")
-        prsMap={}
-        thresholdNoMaxSorted=sorted(thresholdlist, reverse=True)
-        thresholdmax=max(thresholdlist)
-        idlog={}
-        start=time.time()
-        for threshold in thresholdNoMaxSorted:
-            tic=time.time()
-            gwasFilteredBC=sc.broadcast(filterGWASByP_DF(GWASdf=gwasRDD, pcolumn=gwas_p, idcolumn=gwas_id, oddscolumn=gwas_or, pHigh=threshold, logOdds=log_or))
-            #gwasFiltered=spark.sql("SELECT snpid, gwas_or_float FROM gwastable WHERE gwas_p_float < {:f}".format(threshold)
-            logger.info("Filtered GWAS at threshold of {}. Time spent : {:.1f} seconds".format(str(threshold), time.time()-tic))
-            checkpoint=time.time()
-            filteredgenotype=genotypeRDD.filter(lambda line: line[0] in gwasFilteredBC.value)
-            assert calltableRDD, "Error, calltable must be provided"
-            filteredcalltable=calltableRDD.filter(lambda line: line[0] in gwasFilteredBC.value )
-            if not filteredgenotype.isEmpty():
-              #assert filteredcalltable.count()==filteredgenotype.count(), "Error, calltable have different size from genotype"
-              if logsnp:
-                idlog[threshold]=filteredgenotype.map(lambda line:line[0]).collect()
+    ## multiply each call by the odds
+    ## sum up the score, and the calls, within each rank
 
-              prsMap[threshold]=calcPRSFromGeno(filteredgenotype, gwasFilteredBC.value,samplenum=samplenum, calltable=filteredcalltable)
 
-              logger.info("Finished calculating PRS at threshold of {}. Time spent : {:.1f} seconds".format(str(threshold), time.time()-checkpoint))
+    def calcIntervals(genotypeRDDRanked, gwasOddsMap, calltableRanked, logsnpON, logger=logger):
+      logger.info("Calculating scores in each bin")
+      genotypeRDDMultipled=genotypeRDDRanked.map(lambda line: (line[1][0], [x*gwasOddsMap[line[0]] for x in line[1][1]]))
+      intervalScoreRDD=genotypeRDDMultipled.reduceByKey(lambda snp1, snp2: map(add, snp1, snp2))
+      intervalScores=intervalScoreRDD.collect()
 
-            else:
-              logger.warn("No snps left at threshold {}" .format(threshold))
-        return prsMap, idlog
+      logger.info("Calculating calls in each bin")
+      intervalCallsRDD=calltableRanked.map(lambda line:line[1]).reduceByKey(lambda snp1, snp2: map(add, snp1, snp2))
 
-    prsDict, snpids=calcAll(genotypeMax,gwastable, thresholds, logsnp=snp_log, samplenum=samplesize,calltableRDD=genocalltable)
+      intervalCalls=intervalCallsRDD.collect()
+
+      logger.info("Generating snp list in each bin")
+
+      snpLists=False
+      if logsnpON:
+        snpLists=calltableRanked.map(lambda line:(line[1][0], line[0])).groupByKey().map(lambda line: (line[0], list(line[1]))).collect()
+
+      return intervalScores, intervalCalls, snpLists
+
+    scoresBin, callsBin, snpBin=calcIntervals(genotypeMaxRanked, gwasOddsMapMaxCA, genocalltableRanked, snp_log)
+
+    ## Take the sum of scores, calls and snplist in each bin and gather them
+    def gatherScores(binScores,binCalls,binSNPs, thresholdList, logger=logger):
+      prsResults={}
+      snpNames={}
+      binScoresSorted=sorted(binScores)
+      binCallsSorted=sorted(binCalls)
+      if binSNPs:
+          binSNPsSorted=sorted(binSNPs)
+      logger.info("Start gathering scores from each bin")
+      binThresholds=[x[0] for x in binScoresSorted]
+      for x in binThresholds:
+        if x not in thresholdList:
+          logger.info("No SNPs exist at threshold {}".format(x))
+
+      assert binThresholds==[x[0] for x in binCallsSorted], "Error, scores and calls have different bins"
+      assert binThresholds==[x[0] for x in binSNPsSorted], "Error, scores and SNP list have different bins"
+
+      binScoresSortedvalues=[x[1] for x in binScoresSorted]
+      binCallsSortedvalues=[x[1] for x in binCallsSorted]
+      binSnpsSortedvalues=[x[1] for x in binSNPsSorted]
+      totalNumbers=len(binScores)
+      for i in range(len(binScoresSorted)):
+
+        threshold=binThresholds[i]
+        scores=[sum(x) for x in zip(*binScoresSortedvalues[:(i+1)])]
+        calls=[sum(x) for x in zip(*binCallsSortedvalues[:(i+1)])]
+        normalizedScores=[score/call for score, call in zip(scores, calls)]
+
+        prsResults[threshold]=[calls,normalizedScores]
+        if binSNPs:
+            combinedSNPs=reduce(lambda x,y: x+y, binSnpsSortedvalues[:(i+1)])
+            snpNames[threshold]=combinedSNPs
+
+        print("Processed {} / {} scores".format(i+1, totalNumbers))
+        sys.stdout.flush()
+
+      return prsResults, snpNames
+
+    prsDict, snpids=gatherScores(scoresBin, callsBin, snpBin, thresholds)
 
     # log which SNPs are used in PRS
     if snp_log:
