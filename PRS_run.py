@@ -226,7 +226,7 @@ def writePRS(prsResults, outputFile, logger, samplenames=None, dialect=None):
                 csvwriter=csv.writer(f, dialect=dialect)
                 for row in zip(*outputdata):
                     csvwriter.writerow(row)
-                logger.info("Successfully wrote scores to "+ scorefile)
+                logger.info("Successfully saved scores to "+ scorefile)
         except:
             e = sys.exc_info()[0]
             logger.warn( "Error: %s" % e )
@@ -265,7 +265,7 @@ def writeSNPlog(snpidmap, outputFile, logger, flagMap=None, dialect=None):
             csvwriter=csv.writer(f, dialect=dialect)
             for row in zip(*outputdata):
                 csvwriter.writerow(row)
-            logger.info("Successfully output log to "+ snplogfile)
+            logger.info("Successfully saved log to "+ snplogfile)
     except:
         e = sys.exc_info()[0]
         logger.warn( "Error: %s" % e )
@@ -341,13 +341,14 @@ def regression(scoreMap,phenoFile, phenoDelim, phenoColumns, phenoNoHeader, cova
 
 
 if __name__=="__main__":
-    parser = argparse.ArgumentParser(description='PRS Script Parameters', version='1.7')
+    parser = argparse.ArgumentParser(description='PRS Script Parameters', version='2.0')
     # Mandatory positional arguments
     parser.add_argument("GENO", action="store", help="Name of the Genotype files, can be a name or path, or name patterns with wildcard character ")
     parser.add_argument("GWAS", action="store", help="Name of the GWAS file, can be a name or path.")
     parser.add_argument("Output", action="store", help="The path and name stem for the output files. One name will be used for the score output, the snp log and the regression output. This is similar to the --out flag in pLink")
 
     # Optional arguments
+    parser.add_argument('--version', action='version', version='%(prog)s 2.0')
     parser.add_argument("--gwas_id", action="store", default=0, dest="gwas_id",type=int, help="Column number in your GWAS that contains SNP ID, with first column being 0, default is 0")
     parser.add_argument("--gwas_p", action="store", default=1, dest="gwas_p", type=int, help="Column number in your GWAS that contains p-value, with first column being 0, default is 1")
     parser.add_argument("--gwas_or", action="store", default=2, dest="gwas_or", type=int, help="Column number in your GWAS that contains odds-ratio/beta, with first column being 0, default is 2")
@@ -644,6 +645,7 @@ if __name__=="__main__":
     logger.info("Dosage generated in {:.1f} seconds".format(time.time()-tic) )
     samplesize=int(len(genotypeMax.first()[1]))
     logger.info("Detected {} samples in genotype data" .format(str(samplesize)))
+    flagMap=sc.broadcast(flagMap).value
 
     #genoa1f.map(lambda line:"\t".join([line[0], "\t".join(line[1]), str(line[2])])).saveAsTextFile("../MOMS_info03_maf")
 
@@ -669,7 +671,7 @@ if __name__=="__main__":
 
     genotypeMaxRanked=snpBinRDD.join(genotypeMax)
 
-    # Calculate PRS at the sepcified thresholds
+    # Calculate the number of calls for each SNP
     if flagMap:
       genocalltable=genotable.filter(lambda line: line[0] in flagMap and flagMap[line[0]]!="discard" ).mapValues(lambda geno: getCall(geno)).cache()
     else:
@@ -682,9 +684,9 @@ if __name__=="__main__":
 
 
     ## multiply each call by the odds
-    ## sum up the score, and the calls, within each rank
 
-
+    ## sum up the score, and the calls, within each bin
+    ## Collect the result
     def calcIntervals(genotypeRDDRanked, gwasOddsMap, calltableRanked, logsnpON, logger=logger):
       logger.info("Calculating scores in each bin")
       genotypeRDDMultipled=genotypeRDDRanked.map(lambda line: (line[1][0], [x*gwasOddsMap[line[0]] for x in line[1][1]]))
@@ -716,9 +718,9 @@ if __name__=="__main__":
           binSNPsSorted=sorted(binSNPs)
       logger.info("Start gathering scores from each bin")
       binThresholds=[x[0] for x in binScoresSorted]
-      for x in binThresholds:
-        if x not in thresholdList:
-          logger.info("No SNPs exist at threshold {}".format(x))
+      #for x in thresholdList:
+        #if x not in thresholdList:
+          #logger.warn("No SNPs exist at threshold {}".format(x))
 
       assert binThresholds==[x[0] for x in binCallsSorted], "Error, scores and calls have different bins"
       assert binThresholds==[x[0] for x in binSNPsSorted], "Error, scores and SNP list have different bins"
@@ -739,13 +741,13 @@ if __name__=="__main__":
             combinedSNPs=reduce(lambda x,y: x+y, binSnpsSortedvalues[:(i+1)])
             snpNames[threshold]=combinedSNPs
 
-        print("Processed {} / {} scores".format(i+1, totalNumbers))
+        print("Calculated {} / {} scores".format(i+1, totalNumbers))
         sys.stdout.flush()
-
-      return prsResults, snpNames
+        logger.info("Finished processing all {} scores".format(totalNumbers))
+        return prsResults, snpNames
 
     prsDict, snpids=gatherScores(scoresBin, callsBin, snpBin, thresholds)
-
+    logger.info("Finished gathering scores from each bin")
     # log which SNPs are used in PRS
     if snp_log:
         if flagMap:
