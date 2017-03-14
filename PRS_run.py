@@ -504,11 +504,11 @@ if __name__=="__main__":
     # get the name of the genotype files
     genoFileNamePattern=results.GENO
     if "file:/" in genoFileNamePattern:
-        genoFileNamePattern=re.sub("file://", "", genoFileNamePattern)
+        genoFileNamePaths=re.sub("file://", "", genoFileNamePattern)
 
 
     # get the whole list of the file names
-    genoFileNames=glob.glob(genoFileNamePattern)
+    genoFileNames=glob.glob(genoFileNamePaths)
 
     # parameter for phenotype regression
     pheno_file=results.pheno_file
