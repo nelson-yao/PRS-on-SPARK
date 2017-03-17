@@ -504,6 +504,7 @@ if __name__=="__main__":
 
     # get the name of the genotype files
     genoFileNamePattern=results.GENO
+
     if "file:/" in genoFileNamePattern:
         genoFileNamePaths=re.sub("file://", "", genoFileNamePattern)
 
@@ -613,7 +614,7 @@ if __name__=="__main__":
                 flagMap = checktable.rdd.map(lambda line: checkAlignmentDF(line, bpMap)).collectAsMap()
         else:
             logger.info("Determining reference allele, without using MAF. SNPs with Alleles that are reverse compliments will be discarded")
-            genoalleles=genotable.map(lambda line: (line[0])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
+            genoalleles=genointermediate.map(lambda line: (line[0])).toDF(["Snpid_geno", "GenoA1", "GenoA2"])
             gwasalleles=gwastable.rdd.map(lambda line:(line[gwas_id], line[gwas_a1], line[gwas_a2])).toDF(["Snpid_gwas", "GwasA1", "GwasA2"])
             checktable=genoalleles.join(gwasalleles, genoalleles["Snpid_geno"]==gwasalleles["Snpid_gwas"], "inner").cache()
 
