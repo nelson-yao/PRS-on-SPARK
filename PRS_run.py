@@ -341,7 +341,7 @@ def regression(scoreMap,phenoFile, phenoDelim, phenoColumns, phenoNoHeader, cova
 
 
 if __name__=="__main__":
-    parser = argparse.ArgumentParser(description='PRS Script Parameters', version='2.0')
+    parser = argparse.ArgumentParser(description='PRS Script Parameters')
     # Mandatory positional arguments
     parser.add_argument("GENO", action="store", help="Name of the Genotype files, can be a name or path, or name patterns with wildcard character ")
     parser.add_argument("GWAS", action="store", help="Name of the GWAS file, can be a name or path.")
