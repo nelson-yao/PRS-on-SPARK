@@ -67,6 +67,9 @@ This is a default format for the genotype data returned from Sanger Institute. D
 ### Output file
 By default, the output format of PRS results and SNP logs is csv. 
 
+### SNP log
+If the user selects the option, the SNPs that are used for each p-value threshold will be logged into a file with the same name as the output file but with ".snplog" as the extension. This may include the SNPs that have missing calls for some samples. 
+
 ## Running command-line script PRS_run.py
 ### Parameters
 
