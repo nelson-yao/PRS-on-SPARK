@@ -357,9 +357,9 @@ if __name__=="__main__":
     parser.add_argument("--gwas_a1f", action="store", default=5, dest="gwas_a1f", type=int, help="Column number in your GWAS that contains frequency of A1, with first column being 0, default is 5.")
     parser.add_argument("--filetype", action="store",default="VCF", dest="filetype", help="The type of genotype file used as input , choose between VCF and GEN, default is VCF", choices=set(["VCF", "GEN"]))
 
-    parser.add_argument("--thresholds", action="store", default=[], dest="thresholds", help="The p-value thresholds that controls which SNPs are used from the GWAS. Specifying the p-values simply by input one after another. default is empty list []", nargs="+", type=float)
+    parser.add_argument("--thresholds", action="store", default=[], dest="thresholds", help="The p-value thresholds that controls which SNPs are used from the GWAS. Specifying the p-values simply by input one after another, separted by space. default is empty list []", nargs="+", type=float)
 
-    parser.add_argument("--threshold_seq", action="store", default=None, dest="threshold_seq", help="Defines a sequence that contains all the p-value thresholds that controls which SNPs are used from the GWAS. Input is three numbers separted by space: lower bound, upper bound, step size. Default is None. Defining a sequence automatically overwrites the threshold list defined under --thresholds", nargs="+", type=float)
+    parser.add_argument("--threshold_seq", action="store", default=None, dest="threshold_seq", help="Defines a sequence that contains all the p-value thresholds that controls which SNPs are used from the GWAS. Input is three numbers separted by space: lower bound, upper bound, step size. Default is None. The sequence defined using this flag will be merged with the sequence defined using --thresholds", nargs="+", type=float)
 
     parser.add_argument("--GWAS_delim", action="store", default="\t", dest="GWAS_delim", help="Delimtier of the GWAS file, default is tab-delimiter ")
 
@@ -367,7 +367,7 @@ if __name__=="__main__":
 
     parser.add_argument("--log_or", action="store_true", default=False, dest="log_or", help="Adding this parameter tells the script to log the effect sizes provided in the GWAS")
 
-    parser.add_argument("--no_check_ref", action="store_false", default=True, dest="check_ref", help="Adding this option tells the script to theck reference allele when determining genoypte calls. Default is not checking")
+    parser.add_argument("--no_check_ref", action="store_false", default=True, dest="check_ref", help="Adding this option tells the script to NOT check reference allele when determining genoypte calls. Default is to compare genotype alleles with GWAS alleles to determine reference allele")
 
     parser.add_argument("--app_name", action="store", default="PRS", dest="app_name", help="Give your spark application a name. Default is PRS.")
 
@@ -665,7 +665,7 @@ if __name__=="__main__":
         for snp, p in snpwithPsorted:
             if p>thresholdSorted[thresholdidx]:
                 thresholdidx+=1
-                results.append((snp,thresholdSorted[thresholdidx]))
+            results.append((snp,thresholdSorted[thresholdidx]))
         return results
 
     logger.info("Separating data into bins")
