@@ -663,9 +663,9 @@ if __name__=="__main__":
         thresholdSorted=sorted(thresholdList)
         thresholdidx=0
         for snp, p in snpwithPsorted:
-            if p>thresholdSorted[thresholdidx]:
+            if p > thresholdSorted[thresholdidx]:
                 thresholdidx+=1
-            results.append((snp,thresholdSorted[thresholdidx]))
+            results.append((snp,thresholdSorted[thresholdidx])) ##Make sure this statement is not under the if clause
         return results
 
     logger.info("Separating data into bins")
