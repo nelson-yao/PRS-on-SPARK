@@ -339,6 +339,88 @@ def regression(scoreMap,phenoFile, phenoDelim, phenoColumns, phenoNoHeader, cova
     #return phenotypes, thresholds, r2All, pAll
     return phenotypes, thresholds, r2All, pAll
 
+def binTuple(snpwithP, thresholdList):
+    results=[]
+    snpwithPsorted=sorted(snpwithP,key=lambda x: x[1])
+    thresholdSorted=sorted(thresholdList)
+    thresholdidx=0
+    for snp, p in snpwithPsorted:
+        while p > thresholdSorted[thresholdidx]:
+            thresholdidx+=1
+        results.append((snp,thresholdSorted[thresholdidx])) ##Make sure this statement is not under the if clause
+    return results
+
+def calcIntervals(genotypeRDDRanked, gwasOddsMap, calltableRanked, logsnpON, logger):
+    logger.info("Calculating scores in each bin")
+    genotypeRDDMultipled=genotypeRDDRanked.map(lambda line: (line[1][0], [x*gwasOddsMap[line[0]] for x in line[1][1]]))
+    intervalScoreRDD=genotypeRDDMultipled.reduceByKey(lambda snp1, snp2: map(add, snp1, snp2))
+    intervalScores=intervalScoreRDD.collect()
+
+    logger.info("Calculating calls in each bin")
+    intervalCallsRDD=calltableRanked.map(lambda line:line[1]).reduceByKey(lambda snp1, snp2: map(add, snp1, snp2))
+
+    intervalCalls=intervalCallsRDD.collect()
+
+    logger.info("Generating snp list in each bin")
+
+    snpLists=False
+
+    if logsnpON:
+        snpLists=calltableRanked.map(lambda line:(line[1][0], line[0])).groupByKey().map(lambda line: (line[0], list(line[1]))).collect()
+
+    return intervalScores, intervalCalls, snpLists
+
+
+
+## Take the sum of scores, calls and snplist in each bin and gather them
+def gatherScores(binScores,binCalls,binSNPs, thresholdList, logger):
+    prsResults={}
+    snpNames={}
+    binScoresSorted=sorted(binScores)
+    binCallsSorted=sorted(binCalls)
+    if binSNPs:
+      binSNPsSorted=sorted(binSNPs)
+    logger.info("Start gathering scores from each bin")
+    binThresholds=[x[0] for x in binScoresSorted]
+    #for x in thresholdList:
+    #if x not in thresholdList:
+      #logger.warn("No SNPs exist at threshold {}".format(x))
+
+    assert binThresholds==[x[0] for x in binCallsSorted], "Error, scores and calls have different bins"
+    if binSNPs:
+        assert binThresholds==[x[0] for x in binSNPsSorted], "Error, scores and SNP list have different bins"
+        binSnpsSortedvalues=np.array(["\t".join(x[1]) for x in binSNPsSorted])
+
+    binScoresSortedvalues=np.array([x[1] for x in binScoresSorted])
+    binCallsSortedvalues=np.array([x[1] for x in binCallsSorted])
+    totalNumbers=len(binThresholds)
+    thresholdIndex=np.array(binThresholds)
+
+    for i , threshold in enumerate(binThresholds):
+        filteredScores=binScoresSortedvalues[np.where(thresholdIndex<=threshold)]
+        filteredCalls=binCallsSortedvalues[np.where(thresholdIndex<=threshold)]
+
+        scores=np.sum(filteredScores, axis=0)
+        calls=np.sum(filteredCalls, axis=0)
+
+        normalizedScores=(scores/calls).tolist()
+
+        prsResults[threshold]=[calls.tolist(),normalizedScores]
+        if binSNPs:
+            filtereSNPs=binSnpsSortedvalues[np.where(thresholdIndex<=threshold)].tolist()
+            combinedSNPs="\t".join(filtereSNPs)
+            snpNames[threshold]=combinedSNPs.split("\t")
+
+        logger.info("Calculated {} / {} scores".format(i+1, totalNumbers))
+        #print("Calculated {} / {} scores".format(i+1, totalNumbers))
+        sys.stdout.flush()
+
+    logger.info("Finished processing {} scores".format(len(prsResults)))
+
+    return prsResults, snpNames
+
+
+
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='PRS Script Parameters')
@@ -661,16 +743,7 @@ if __name__=="__main__":
 
     gwasP=gwastable.rdd.filter(lambda line: float(line[gwas_p])< maxThreshold).map(lambda line: (line[gwas_id], float(line[gwas_p]))).collect()
 
-    def binTuple(snpwithP, thresholdList):
-        results=[]
-        snpwithPsorted=sorted(snpwithP,key=lambda x: x[1])
-        thresholdSorted=sorted(thresholdList)
-        thresholdidx=0
-        for snp, p in snpwithPsorted:
-            while p > thresholdSorted[thresholdidx]:
-                thresholdidx+=1
-            results.append((snp,thresholdSorted[thresholdidx])) ##Make sure this statement is not under the if clause
-        return results
+
 
     logger.info("Separating data into bins")
     snpBin=binTuple(gwasP, thresholds)
@@ -695,73 +768,13 @@ if __name__=="__main__":
         genotypeMultiClean=genotypeMulti.map(lambda line: "\t".join([line[0]]+[str(x) for x in line[1]]))
         genotypeMultiClean.saveAsTextFile(write_matrix)
 
+    scoresBin, callsBin, snpBin=calcIntervals(genotypeMaxRanked, gwasOddsMapMaxCA, genocalltableRanked, snp_log, logger=logger)
     ## multiply each call by the odds
 
     ## sum up the score, and the calls, within each bin
     ## Collect the result
-    def calcIntervals(genotypeRDDRanked, gwasOddsMap, calltableRanked, logsnpON, logger=logger):
-        logger.info("Calculating scores in each bin")
-        genotypeRDDMultipled=genotypeRDDRanked.map(lambda line: (line[1][0], [x*gwasOddsMap[line[0]] for x in line[1][1]]))
-        intervalScoreRDD=genotypeRDDMultipled.reduceByKey(lambda snp1, snp2: map(add, snp1, snp2))
-        intervalScores=intervalScoreRDD.collect()
 
-        logger.info("Calculating calls in each bin")
-        intervalCallsRDD=calltableRanked.map(lambda line:line[1]).reduceByKey(lambda snp1, snp2: map(add, snp1, snp2))
-
-        intervalCalls=intervalCallsRDD.collect()
-
-        logger.info("Generating snp list in each bin")
-
-        snpLists=False
-
-        if logsnpON:
-            snpLists=calltableRanked.map(lambda line:(line[1][0], line[0])).groupByKey().map(lambda line: (line[0], list(line[1]))).collect()
-
-        return intervalScores, intervalCalls, snpLists
-
-    scoresBin, callsBin, snpBin=calcIntervals(genotypeMaxRanked, gwasOddsMapMaxCA, genocalltableRanked, snp_log)
-
-    ## Take the sum of scores, calls and snplist in each bin and gather them
-    def gatherScores(binScores,binCalls,binSNPs, thresholdList, logger=logger):
-        prsResults={}
-        snpNames={}
-        binScoresSorted=sorted(binScores)
-        binCallsSorted=sorted(binCalls)
-        if binSNPs:
-          binSNPsSorted=sorted(binSNPs)
-        logger.info("Start gathering scores from each bin")
-        binThresholds=[x[0] for x in binScoresSorted]
-        #for x in thresholdList:
-        #if x not in thresholdList:
-          #logger.warn("No SNPs exist at threshold {}".format(x))
-
-        assert binThresholds==[x[0] for x in binCallsSorted], "Error, scores and calls have different bins"
-        if binSNPs:
-            assert binThresholds==[x[0] for x in binSNPsSorted], "Error, scores and SNP list have different bins"
-            binSnpsSortedvalues=[x[1] for x in binSNPsSorted]
-
-        binScoresSortedvalues=[x[1] for x in binScoresSorted]
-        binCallsSortedvalues=[x[1] for x in binCallsSorted]
-        totalNumbers=len(binThresholds)
-        for i in range(len(binScoresSorted)):
-            threshold=binThresholds[i]
-            scores=[sum(x) for x in zip(*binScoresSortedvalues[:(i+1)])]
-            calls=[sum(x) for x in zip(*binCallsSortedvalues[:(i+1)])]
-            normalizedScores=[score/call for score, call in zip(scores, calls)]
-
-            prsResults[threshold]=[calls,normalizedScores]
-            if binSNPs:
-                combinedSNPs=reduce(lambda x,y: x+y, binSnpsSortedvalues[:(i+1)])
-                snpNames[threshold]=combinedSNPs
-
-            print("Calculated {} / {} scores".format(i+1, totalNumbers))
-            sys.stdout.flush()
-
-        logger.info("Finished processing {} scores".format(len(prsResults)))
-
-        return prsResults, snpNames
-
-    prsDict, snpids=gatherScores(scoresBin, callsBin, snpBin, thresholds)
+    prsDict, snpids=gatherScores(scoresBin, callsBin, snpBin, thresholds,logger=logger)
     logger.info("Finished gathering scores from each bin")
 
 
