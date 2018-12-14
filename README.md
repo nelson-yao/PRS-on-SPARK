@@ -1,7 +1,7 @@
 # PRS-on-SPARK
 Polygenic risk score pipeline for large genotype data, generally imputed data.
 Published in BMC bioinformatics
-(PRS-on-Spark (PRSoS): a novel, efficient and flexible approach for generating polygenic risk scores)[https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-018-2289-9]
+[PRS-on-Spark (PRSoS): a novel, efficient and flexible approach for generating polygenic risk scores](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-018-2289-9)
 
 
 
